@@ -105,7 +105,6 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
   const [structure, setStructure] = useState<AnyRow | null>(null);
 
   const flattenedTasks = useMemo(() => flattenTasks(structure), [structure]);
- codex/create-saas-platform-nexo-projetos-mxpyiv
 
   function addFiles(files: FileList | null) {
     if (!files) return;
@@ -184,78 +183,6 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
       await supabase.functions.invoke("send-project-invite", { body: { project_id: projectId, ...invite } });
     }
 
-
-  function addFiles(files: FileList | null) {
-    if (!files) return;
-    setDocuments((current) => [
-      ...current,
-      ...Array.from(files).map((file) => ({ id: crypto.randomUUID(), name: file.name, file_type: file.type || "arquivo", description: "", ai_enabled: true, file })),
-    ]);
-  }
-
-  function addInvite() {
-    if (!inviteDraft.invited_email.trim()) return;
-    setInvites((current) => [...current, { ...inviteDraft, invited_email: inviteDraft.invited_email.trim().toLowerCase() }]);
-    setInviteDraft({ invited_email: "", invited_name: "", role: "contributor", message: "" });
-  }
-
-  async function generateStructure() {
-    if (!defaultOrgId || !input.name.trim()) return;
-    setLoading(true);
-    const { data, error } = await supabase.functions.invoke("smart-project-structure", {
-      body: {
-        organization_id: defaultOrgId,
-        ...input,
-        participants: invites,
-        documents: documents.map(({ name, file_type, ai_enabled }) => ({ name, file_type, ai_enabled })),
-      },
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setStructure(data.structure);
-    setStep(5);
-  }
-
-  async function createProjectWithStructure() {
-    if (!defaultOrgId || !user || !structure) return;
-    setLoading(true);
-    const { data: project, error } = await db.from("projects").insert({
-      org_id: defaultOrgId,
-      owner_id: user.id,
-      name: input.name.trim(),
-      description: input.description || null,
-      objective: structure.overview?.objective || input.objective || null,
-      start_date: input.start_date || null,
-      end_date: input.end_date || null,
-      status: "active",
-      health: "green",
-      progress: 0,
-      health_reason: "Projeto criado com estrutura inicial gerada por IA e aguardando execução.",
-      scope: structure.overview?.scope || null,
-      justification: structure.overview?.justification || null,
-      assumptions: structure.overview?.assumptions || null,
-      constraints_text: structure.overview?.constraints || null,
-      success_criteria: structure.overview?.success_criteria || null,
-      main_deliverables: (structure.wbs ?? []).map((phase: AnyRow) => phase.title).join("; "),
-    }).select("id").single();
-    if (error) { setLoading(false); toast.error(error.message); return; }
-
-    const projectId = project.id;
-    await createWbsAndTasks(projectId, structure, user.id);
-    await insertRows("risks", projectId, (structure.risks ?? []).map((risk: AnyRow) => ({ title: risk.title, description: risk.description, probability: risk.probability, impact: risk.impact, level: risk.level, preventive_action: risk.preventive_action, response_plan: risk.response_plan, status: "open" })));
-    await insertRows("stakeholders", projectId, (structure.stakeholders ?? []).map((s: AnyRow) => ({ name: s.name, role: s.role, influence: s.influence, interest: s.interest, communication_channel: s.communication_channel, communication_frequency: s.communication_frequency })));
-    await insertRows("communication_plan_items", projectId, structure.communication_plan ?? []);
-    await insertRows("project_org_chart_nodes", projectId, (structure.org_chart ?? []).map((node: AnyRow, index: number) => ({ ...node, order_index: index })));
-    await uploadDocuments(projectId, defaultOrgId, documents, user.id);
-    await db.from("project_reports").insert({ project_id: projectId, type: "status", title: "Relatório Inicial do Projeto", created_by: user.id, content: structure.initial_report ?? structure });
-
-    for (const invite of invites) {
-      await supabase.functions.invoke("send-project-invite", { body: { project_id: projectId, ...invite } });
-    }
- main
 
     await db.rpc("recalculate_project_progress", { _project_id: projectId });
     setLoading(false);
