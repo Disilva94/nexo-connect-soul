@@ -8,11 +8,19 @@ import { Button } from "@/components/ui/button";
 const nav = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/projects", label: "Projetos", icon: FolderKanban },
+ codex/create-saas-platform-nexo-projetos-mxpyiv
   { to: "/tasks", label: "Tarefas", icon: ListTodo },
   { to: "/calendar", label: "Calendário", icon: CalendarDays },
   { to: "/settings/organization", label: "Equipe", icon: Users },
   { to: "/reports", label: "Relatórios", icon: BarChart3 },
   { to: "/files", label: "Arquivos", icon: Files },
+
+  { to: "/dashboard", label: "Tarefas", icon: ListTodo },
+  { to: "/dashboard", label: "Calendário", icon: CalendarDays },
+  { to: "/settings/organization", label: "Equipe", icon: Users },
+  { to: "/dashboard", label: "Relatórios", icon: BarChart3 },
+  { to: "/dashboard", label: "Arquivos", icon: Files },
+ main
   { to: "/settings/organization", label: "Configurações", icon: Settings },
 ] as const;
 
