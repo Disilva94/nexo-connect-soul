@@ -242,7 +242,7 @@ function GenerateStep({ input, documents, invites, generateStructure, loading }:
 }
 
 function PreviewStep({ structure, setStructure, documents, invites, tasks }: { structure: AnyRow; setStructure: (s: AnyRow) => void; documents: DocDraft[]; invites: InviteDraft[]; tasks: AnyRow[] }) {
-  codex/create-saas-platform-nexo-projetos-mxpyiv
+  
   const documentItems = (structure.documents ?? documents).map((doc: AnyRow | DocDraft | string) => {
     if (typeof doc === "string") return doc;
     return `${doc.name} — ${doc.category ?? "Outros"}${doc.summary ? `: ${doc.summary}` : ""}`;
