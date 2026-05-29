@@ -105,6 +105,85 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
   const [structure, setStructure] = useState<AnyRow | null>(null);
 
   const flattenedTasks = useMemo(() => flattenTasks(structure), [structure]);
+ codex/create-saas-platform-nexo-projetos-mxpyiv
+
+  function addFiles(files: FileList | null) {
+    if (!files) return;
+    setDocuments((current) => [
+      ...current,
+      ...Array.from(files).map((file) => ({ id: crypto.randomUUID(), name: file.name, file_type: file.type || "arquivo", description: "", ai_enabled: true, file })),
+    ]);
+  }
+
+  function addInvite() {
+    if (!inviteDraft.invited_email.trim()) return;
+    setInvites((current) => [...current, { ...inviteDraft, invited_email: inviteDraft.invited_email.trim().toLowerCase() }]);
+    setInviteDraft({ invited_email: "", invited_name: "", role: "contributor", message: "" });
+  }
+
+  async function generateStructure() {
+    if (!defaultOrgId || !input.name.trim()) return;
+    setLoading(true);
+    const payload = {
+      organization_id: defaultOrgId,
+      ...input,
+      participants: invites,
+      documents: documents.map(({ name, file_type, ai_enabled }) => ({ name, file_type, ai_enabled })),
+    };
+
+    try {
+      const { data, error } = await supabase.functions.invoke("smart-project-structure", { body: payload });
+      if (error) throw error;
+      if (!data?.structure) throw new Error("A função de IA não retornou uma estrutura válida.");
+      setStructure(data.structure);
+      toast.success("Estrutura gerada com IA.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao chamar a Edge Function.";
+      setStructure(buildLocalSmartStructure(payload));
+      toast.warning(`Não consegui acessar a Edge Function agora (${message}). Gerei uma prévia estruturada local para você continuar.`);
+    } finally {
+      setLoading(false);
+      setStep(5);
+    }
+  }
+
+  async function createProjectWithStructure() {
+    if (!defaultOrgId || !user || !structure) return;
+    setLoading(true);
+    const { data: project, error } = await db.from("projects").insert({
+      org_id: defaultOrgId,
+      owner_id: user.id,
+      name: input.name.trim(),
+      description: input.description || null,
+      objective: structure.overview?.objective || input.objective || null,
+      start_date: input.start_date || null,
+      end_date: input.end_date || null,
+      status: "active",
+      health: "green",
+      progress: 0,
+      health_reason: "Projeto criado com estrutura inicial gerada por IA e aguardando execução.",
+      scope: structure.overview?.scope || null,
+      justification: structure.overview?.justification || null,
+      assumptions: structure.overview?.assumptions || null,
+      constraints_text: structure.overview?.constraints || null,
+      success_criteria: structure.overview?.success_criteria || null,
+      main_deliverables: (structure.wbs ?? []).map((phase: AnyRow) => phase.title).join("; "),
+    }).select("id").single();
+    if (error) { setLoading(false); toast.error(error.message); return; }
+
+    const projectId = project.id;
+    await createWbsAndTasks(projectId, structure, user.id);
+    await insertRows("risks", projectId, (structure.risks ?? []).map((risk: AnyRow) => ({ title: risk.title, description: risk.description, probability: risk.probability, impact: risk.impact, level: risk.level, preventive_action: risk.preventive_action, response_plan: risk.response_plan, status: "open" })));
+    await insertRows("stakeholders", projectId, (structure.stakeholders ?? []).map((s: AnyRow) => ({ name: s.name, role: s.role, influence: s.influence, interest: s.interest, communication_channel: s.communication_channel, communication_frequency: s.communication_frequency })));
+    await insertRows("communication_plan_items", projectId, structure.communication_plan ?? []);
+    await insertRows("project_org_chart_nodes", projectId, (structure.org_chart ?? []).map((node: AnyRow, index: number) => ({ ...node, order_index: index })));
+    await uploadDocuments(projectId, defaultOrgId, documents, user.id);
+    await db.from("project_reports").insert({ project_id: projectId, type: "status", title: "Relatório Inicial do Projeto", created_by: user.id, content: structure.initial_report ?? structure });
+
+    for (const invite of invites) {
+      await supabase.functions.invoke("send-project-invite", { body: { project_id: projectId, ...invite } });
+    }
+
 
   function addFiles(files: FileList | null) {
     if (!files) return;
@@ -176,6 +255,7 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
     for (const invite of invites) {
       await supabase.functions.invoke("send-project-invite", { body: { project_id: projectId, ...invite } });
     }
+ main
 
     await db.rpc("recalculate_project_progress", { _project_id: projectId });
     setLoading(false);
@@ -235,7 +315,271 @@ function GenerateStep({ input, documents, invites, generateStructure, loading }:
 }
 
 function PreviewStep({ structure, setStructure, documents, invites, tasks }: { structure: AnyRow; setStructure: (s: AnyRow) => void; documents: DocDraft[]; invites: InviteDraft[]; tasks: AnyRow[] }) {
-  return <div className="space-y-4"><Card className="p-5"><h3 className="font-display text-xl font-semibold">Prévia da estrutura do projeto</h3><p className="mt-2 text-sm text-muted-foreground">Revise a prévia. Registros definitivos só serão criados ao confirmar.</p><Textarea className="mt-3" rows={3} value={structure.overview?.objective ?? ""} onChange={(e) => setStructure({ ...structure, overview: { ...structure.overview, objective: e.target.value } })} /></Card><div className="grid gap-4 lg:grid-cols-2"><PreviewList title="EAP sugerida" items={(structure.wbs ?? []).map((phase: AnyRow) => `${phase.code} ${phase.title} — ${phase.weight}%`)} /><PreviewList title="Tarefas sugeridas" items={tasks.slice(0, 12).map((task) => `${task.title} — ${task.due_date}`)} /><PreviewList title="Riscos sugeridos" items={(structure.risks ?? []).map((risk: AnyRow) => `${risk.title} — ${risk.level}`)} /><PreviewList title="Stakeholders sugeridos" items={(structure.stakeholders ?? []).map((s: AnyRow) => `${s.name} — ${s.role}`)} /><PreviewList title="Organograma sugerido" items={(structure.org_chart ?? []).map((node: AnyRow) => `${node.title}: ${node.person_name}`)} /><PreviewList title="Plano de comunicação" items={(structure.communication_plan ?? []).map((item: AnyRow) => `${item.audience} — ${item.frequency}`)} /><PreviewList title="Documentos analisados" items={documents.map((doc) => doc.name)} /><PreviewList title="Participantes convidados" items={invites.map((invite) => `${invite.invited_email} — ${invite.role}`)} /></div><div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => toast.info("A prévia foi simplificada visualmente. Ajuste campos antes de criar.")}>Pedir para simplificar</Button><Button variant="secondary" onClick={() => toast.info("Para detalhar mais, volte e gere novamente informando mais contexto.")}>Pedir para detalhar mais</Button></div>{structure.schedule_warning && <p className="rounded-lg bg-warning/20 p-3 text-sm text-warning-foreground">{structure.schedule_warning}</p>}</div>;
+  codex/create-saas-platform-nexo-projetos-mxpyiv
+  const documentItems = (structure.documents ?? documents).map((doc: AnyRow | DocDraft | string) => {
+    if (typeof doc === "string") return doc;
+    return `${doc.name} — ${doc.category ?? "Outros"}${doc.summary ? `: ${doc.summary}` : ""}`;
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <h3 className="font-display text-xl font-semibold">Prévia da estrutura do projeto</h3>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Revise a prévia completa. Nada definitivo é salvo em EAP, tarefas, riscos, documentos ou convites até você clicar em “Criar projeto com esta estrutura”.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <Field label="Objetivo estruturado">
+            <Textarea rows={3} value={structure.overview?.objective ?? ""} onChange={(e) => setStructure({ ...structure, overview: { ...structure.overview, objective: e.target.value } })} />
+          </Field>
+          <Field label="Escopo inicial">
+            <Textarea rows={3} value={structure.overview?.scope ?? ""} onChange={(e) => setStructure({ ...structure, overview: { ...structure.overview, scope: e.target.value } })} />
+          </Field>
+        </div>
+      </Card>
+
+      {structure.schedule_warning && <p className="rounded-lg bg-warning/20 p-3 text-sm text-warning-foreground">{structure.schedule_warning}</p>}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <PreviewList title="Resumo do projeto" items={[structure.overview?.justification, structure.overview?.assumptions, structure.overview?.constraints, structure.overview?.success_criteria].filter(Boolean)} />
+        <PreviewList title="EAP sugerida" items={(structure.wbs ?? []).map((phase: AnyRow) => `${phase.code} ${phase.title} — ${phase.weight}% · ${phase.start_date} até ${phase.due_date}`)} />
+        <PreviewList title="Tarefas sugeridas" items={tasks.map((task) => `${task.phase} / ${task.package}: ${task.title} — ${task.start_date} até ${task.due_date}`)} />
+        <PreviewList title="Cronograma e marcos" items={(structure.milestones ?? []).map((milestone: AnyRow) => `${milestone.title} — ${milestone.due_date}`)} />
+        <PreviewList title="Organograma sugerido" items={(structure.org_chart ?? []).map((node: AnyRow) => `${node.title}: ${node.person_name} — ${node.responsibilities}`)} />
+        <PreviewList title="Riscos sugeridos" items={(structure.risks ?? []).map((risk: AnyRow) => `${risk.title} — ${risk.level}: ${risk.preventive_action}`)} />
+        <PreviewList title="Stakeholders sugeridos" items={(structure.stakeholders ?? []).map((s: AnyRow) => `${s.name} — ${s.role} · influência ${s.influence} · interesse ${s.interest}`)} />
+        <PreviewList title="Plano de comunicação inicial" items={(structure.communication_plan ?? []).map((item: AnyRow) => `${item.audience}: ${item.subject} · ${item.channel} · ${item.frequency}`)} />
+        <PreviewList title="Documentos analisados e organizados" items={documentItems} />
+        <PreviewList title="Participantes convidados" items={invites.map((invite) => `${invite.invited_email} — ${roleOptions.find((role) => role.value === invite.role)?.label ?? invite.role}`)} />
+        <PreviewList title="Checklist inicial" items={structure.checklist ?? []} />
+        <PreviewList title="Relatório inicial e recomendações" items={[structure.initial_report?.summary, ...(structure.initial_report?.recommendations ?? []), ...(structure.initial_report?.next_steps ?? [])].filter(Boolean)} />
+      </div>
+
+      <Card className="p-4">
+        <h4 className="font-semibold">Transparência da IA</h4>
+        <div className="mt-3 grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
+          <div><strong>Dados fornecidos:</strong><br />{(structure.source_notes?.user_provided ?? []).join(", ") || "Formulário do usuário"}</div>
+          <div><strong>Documentos:</strong><br />{structure.source_notes?.document_extracted ?? "Nenhum documento processado ainda."}</div>
+          <div><strong>Sugestões:</strong><br />{structure.source_notes?.ai_suggestions ?? "Estrutura sugerida e editável."}</div>
+        </div>
+      </Card>
+
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={() => toast.info("A prévia já está em formato simplificado para revisão. Edite objetivo e escopo antes de criar.")}>Pedir para simplificar</Button>
+        <Button variant="secondary" onClick={() => toast.info("Para detalhar mais, volte e gere novamente com mais contexto, documentos ou observações.")}>Pedir para detalhar mais</Button>
+      </div>
+    </div>
+  );
+}
+
+type SmartStructurePayload = SmartProjectInput & {
+  organization_id: string;
+  participants: InviteDraft[];
+  documents: Array<{ name: string; file_type: string; ai_enabled: boolean }>;
+};
+
+function buildLocalSmartStructure(payload: SmartStructurePayload) {
+  const academic = ["acadêmico", "academico", "pesquisa"].includes(payload.area?.toLowerCase?.() ?? "");
+  const software = payload.area === "software" || payload.project_type.toLowerCase().includes("software");
+  const start = payload.start_date || todayIso();
+  const end = payload.end_date || addDays(start, payload.complexity === "advanced" ? 90 : payload.complexity === "medium" ? 45 : 21);
+  const phaseTemplates: Array<[string, string, number, string[]]> = academic
+    ? [
+        ["1.0", "Pesquisa e diagnóstico", 20, ["Levantamento de referências", "Análise dos documentos", "Definição do problema"]],
+        ["2.0", "Metodologia e planejamento", 25, ["Definir método", "Planejar cronograma", "Organizar responsabilidades"]],
+        ["3.0", "Desenvolvimento do trabalho", 35, ["Produzir entregas principais", "Revisar com orientador", "Consolidar resultados"]],
+        ["4.0", "Entrega e apresentação", 20, ["Formatação final", "Preparar apresentação", "Aprovação e encerramento"]],
+      ]
+    : software
+      ? [
+          ["1.0", "Descoberta e escopo", 20, ["Briefing e requisitos", "Mapeamento de stakeholders", "Critérios de sucesso"]],
+          ["2.0", "Planejamento da solução", 25, ["Arquitetura inicial", "Backlog priorizado", "Plano de entrega"]],
+          ["3.0", "Execução e validação", 35, ["Implementação", "Testes e revisão", "Homologação"]],
+          ["4.0", "Lançamento e encerramento", 20, ["Preparar entrega", "Treinamento e documentação", "Lições aprendidas"]],
+        ]
+      : [
+          ["1.0", "Iniciação e alinhamento", 20, ["Briefing", "Escopo inicial", "Governança"]],
+          ["2.0", "Planejamento", 25, ["Cronograma", "Custos estimados", "Plano de comunicação"]],
+          ["3.0", "Execução", 35, ["Produção das entregas", "Controle de qualidade", "Acompanhamento"]],
+          ["4.0", "Validação e encerramento", 20, ["Entrega final", "Aprovação", "Relatório final"]],
+        ];
+
+  const wbs = phaseTemplates.map(([code, title, weight, packages], phaseIndex) => {
+    const phaseStart = interpolateDate(start, end, phaseIndex / phaseTemplates.length);
+    const phaseEnd = interpolateDate(start, end, (phaseIndex + 1) / phaseTemplates.length);
+    return {
+      code,
+      title,
+      type: "phase",
+      weight,
+      status: "todo",
+      start_date: phaseStart,
+      due_date: phaseEnd,
+      justification: "Sugestão gerada a partir das informações fornecidas no assistente de criação.",
+      packages: (packages as string[]).map((packageTitle, packageIndex) => ({
+        code: `${phaseIndex + 1}.${packageIndex + 1}`,
+        title: packageTitle,
+        type: "package",
+        weight: 0,
+        status: "todo",
+        start_date: phaseStart,
+        due_date: phaseEnd,
+        justification: "Pacote sugerido para transformar o objetivo em entregas gerenciáveis.",
+        tasks: buildPackageTasks(packageTitle, String(title), phaseStart, phaseEnd),
+      })),
+    };
+  });
+
+  const invitedManager = payload.participants.find((participant) => participant.role === "manager");
+  const invitedClient = payload.participants.find((participant) => participant.role === "client");
+  const invitedProfessor = payload.participants.find((participant) => participant.role === "professor");
+  const documentSummaries = payload.documents.map((document) => ({
+    name: document.name,
+    category: classifyLocalDocument(document.name),
+    summary: "Documento incluído no assistente. O processamento completo será feito depois que o projeto existir e o arquivo estiver salvo com project_id.",
+    important_points: ["Validar conteúdo", "Relacionar com a EAP", "Confirmar permissão de uso pela IA"],
+    possible_tasks: ["Ler documento", "Extrair requisitos", "Vincular pontos relevantes às entregas"],
+    risks_identified: ["Informação incompleta ou desatualizada"],
+    ai_enabled: document.ai_enabled,
+  }));
+
+  const stakeholders = [
+    { name: invitedClient?.invited_name || invitedClient?.invited_email || "Cliente/Patrocinador", role: "Aprovação e direcionamento", influence: "high", interest: "high", communication_channel: "E-mail ou reunião", communication_frequency: "Semanal" },
+    { name: invitedProfessor?.invited_name || invitedProfessor?.invited_email || "Professor/Orientador", role: "Orientação e avaliação", influence: academic ? "high" : "medium", interest: "high", communication_channel: "Reunião de acompanhamento", communication_frequency: "Quinzenal" },
+    { name: "Equipe do projeto", role: "Execução das entregas", influence: "medium", interest: "high", communication_channel: "Kanban e checkpoints", communication_frequency: "2x por semana" },
+  ];
+
+  const communication_plan = stakeholders.map((stakeholder) => ({
+    audience: stakeholder.name,
+    subject: "Status, próximos passos, riscos e decisões pendentes",
+    channel: stakeholder.communication_channel,
+    frequency: stakeholder.communication_frequency,
+    notes: "Plano inicial sugerido; ajuste conforme disponibilidade dos participantes.",
+  }));
+
+  const risks = [
+    { title: "Escopo insuficientemente detalhado", description: "Algumas entregas podem precisar de refinamento após a primeira reunião.", cause: "Briefing inicial ainda amplo", consequence: "Retrabalho e atraso", probability: "medium", impact: "high", level: "critical", preventive_action: "Validar objetivo, escopo e critérios de sucesso antes da execução.", response_plan: "Revisar EAP e replanejar pacotes afetados." },
+    { title: "Prazo incompatível com complexidade", description: "O prazo pode ser apertado para a quantidade de pacotes sugeridos.", cause: "Estimativa inicial sem histórico detalhado", consequence: "Atraso em marcos principais", probability: "medium", impact: "medium", level: "medium", preventive_action: "Revisar cronograma e reduzir escopo se necessário.", response_plan: "Renegociar prazo, recursos ou entregas." },
+    { title: "Baixa participação dos envolvidos", description: "Participantes podem não atualizar tarefas, documentos ou decisões.", cause: "Responsabilidades e cadência de comunicação indefinidas", consequence: "Falta de visibilidade e decisões tardias", probability: "low", impact: "medium", level: "low", preventive_action: "Definir responsáveis, canais e frequência de acompanhamento.", response_plan: "Escalar pendências e redistribuir tarefas críticas." },
+  ];
+
+  const scheduleWarning = daysBetween(start, end) < (payload.complexity === "advanced" ? 45 : payload.complexity === "medium" ? 21 : 10)
+    ? "O prazo informado parece apertado para a quantidade de atividades sugeridas. Recomendo revisar escopo, reduzir entregas ou ajustar a data final."
+    : "Cronograma inicial gerado de forma proporcional ao prazo informado.";
+
+  return {
+    overview: {
+      name: payload.name,
+      objective: payload.objective || `Estruturar e executar ${payload.name} com entregas claras, responsáveis e prazos controlados.`,
+      scope: payload.description || "Escopo inicial sugerido a partir das informações preenchidas no assistente.",
+      justification: `Projeto classificado como ${payload.area || payload.project_type || "geral"}, com estrutura inicial criada para planejamento, execução, controle e encerramento.`,
+      assumptions: "Participantes convidados terão disponibilidade para colaborar e os documentos enviados serão validados no início do projeto.",
+      constraints: payload.notes || "Nenhuma restrição específica foi informada; revise esta seção antes de aprovar a estrutura.",
+      success_criteria: "EAP aprovada, entregas concluídas no prazo, riscos críticos tratados, documentos organizados e relatório final aprovado.",
+    },
+    wbs,
+    risks,
+    stakeholders,
+    communication_plan,
+    org_chart: [
+      { title: "Responsável geral do projeto", person_name: invitedManager?.invited_name || invitedManager?.invited_email || "Gerente do projeto", responsibilities: "Decisões, prioridades, riscos, prazos e aprovação da estrutura." },
+      { title: "Planejamento", person_name: "Papel sugerido", responsibilities: "Detalhar EAP, dependências, cronograma e critérios de conclusão." },
+      { title: "Execução", person_name: "Equipe do projeto", responsibilities: "Executar tarefas, atualizar Kanban e registrar evidências." },
+      { title: "Comunicação e aprovação", person_name: invitedClient?.invited_name || invitedProfessor?.invited_name || "Stakeholder principal", responsibilities: "Acompanhar progresso, validar entregas e registrar decisões." },
+    ],
+    milestones: wbs.map((phase: AnyRow) => ({ title: `Marco: concluir ${phase.title}`, due_date: phase.due_date })),
+    documents: documentSummaries,
+    participants: payload.participants,
+    schedule_warning: scheduleWarning,
+    checklist: ["Revisar visão geral", "Aprovar pesos da EAP", "Confirmar responsáveis", "Validar cronograma", "Revisar riscos", "Enviar convites", "Processar documentos", "Salvar relatório inicial"],
+    initial_report: {
+      title: "Relatório Inicial do Projeto",
+      summary: `O projeto ${payload.name} foi estruturado em ${wbs.length} fases, ${wbs.flatMap((phase: AnyRow) => phase.packages).length} pacotes e ${wbs.flatMap((phase: AnyRow) => phase.packages).flatMap((pkg: AnyRow) => pkg.tasks).length} tarefas sugeridas.`,
+      recommendations: ["Revise a EAP antes de confirmar", "Confirme se o prazo é realista", "Ajuste responsáveis sugeridos", "Habilite para IA apenas documentos permitidos"],
+      next_steps: ["Aprovar prévia", "Criar projeto", "Enviar convites", "Acompanhar primeira semana pelo Kanban"],
+    },
+    source_notes: {
+      user_provided: ["nome", "tipo", "área", "descrição", "objetivo", "datas", "complexidade", "participantes", "documentos"],
+      document_extracted: documentSummaries.length ? "Os documentos foram considerados pelos nomes/metadados. O conteúdo será extraído após upload definitivo com project_id." : "Nenhum documento foi informado.",
+      ai_suggestions: "EAP, tarefas, cronograma, riscos, stakeholders, organograma, comunicação, checklist e relatório inicial são sugestões editáveis antes da criação definitiva.",
+    },
+  };
+}
+
+function buildPackageTasks(packageTitle: string, phaseTitle: string, startDate: string, dueDate: string) {
+  return [
+    {
+      title: `Planejar ${packageTitle}`,
+      description: `Definir abordagem, entradas necessárias, responsáveis e critérios para ${packageTitle}.`,
+      priority: "high",
+      status: "todo",
+      start_date: startDate,
+      due_date: interpolateDate(startDate, dueDate, 0.35),
+      dependencies: [],
+      checklist: ["Confirmar escopo", "Identificar responsáveis", "Validar entradas", "Registrar plano"],
+      completion_criteria: "Plano validado e registrado no projeto.",
+      related_risk: "Escopo insuficientemente detalhado",
+    },
+    {
+      title: `Executar ${packageTitle}`,
+      description: `Produzir as entregas previstas para ${packageTitle}, mantendo evidências e atualizações no Kanban.`,
+      priority: "medium",
+      status: "todo",
+      start_date: interpolateDate(startDate, dueDate, 0.35),
+      due_date: interpolateDate(startDate, dueDate, 0.75),
+      dependencies: [`Planejar ${packageTitle}`],
+      checklist: ["Executar atividades", "Atualizar status", "Anexar evidências", "Sinalizar impedimentos"],
+      completion_criteria: "Entrega produzida e pronta para validação.",
+      related_risk: "Prazo incompatível com complexidade",
+    },
+    {
+      title: `Validar ${packageTitle}`,
+      description: `Revisar qualidade, critérios de conclusão e aderência de ${packageTitle} à fase ${phaseTitle}.`,
+      priority: "medium",
+      status: "todo",
+      start_date: interpolateDate(startDate, dueDate, 0.75),
+      due_date: dueDate,
+      dependencies: [`Executar ${packageTitle}`],
+      checklist: ["Revisar critérios", "Coletar feedback", "Corrigir pendências", "Aprovar entrega"],
+      completion_criteria: "Entrega validada pelo responsável ou stakeholder definido.",
+      related_risk: "Baixa participação dos envolvidos",
+    },
+  ];
+}
+
+function classifyLocalDocument(name: string) {
+  const lower = name.toLowerCase();
+  if (lower.includes("briefing")) return "Briefing";
+  if (lower.includes("contrato")) return "Contrato";
+  if (lower.includes("orient")) return "Orientação";
+  if (lower.includes("pesquisa") || lower.includes("refer")) return "Pesquisa/Referência";
+  if (lower.includes("ata")) return "Ata";
+  if (lower.includes("escopo")) return "Escopo";
+  if (lower.includes("cronograma")) return "Cronograma";
+  if (lower.includes("financeiro") || lower.includes("orc") || lower.includes("orç")) return "Financeiro";
+  return "Outros";
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDays(date: string, days: number) {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function daysBetween(startDate: string, dueDate: string) {
+  return Math.ceil((new Date(`${dueDate}T00:00:00`).getTime() - new Date(`${startDate}T00:00:00`).getTime()) / 86400000);
+}
+
+function interpolateDate(startDate: string, dueDate: string, ratio: number) {
+  const startTime = new Date(`${startDate}T00:00:00`).getTime();
+  const dueTime = new Date(`${dueDate}T00:00:00`).getTime();
+  return new Date(startTime + (dueTime - startTime) * ratio).toISOString().slice(0, 10);
+
+  return <div className="space-y-4"><Card className="p-5"><h3 className="font-display text-xl font-semibold">Prévia da estrutura do projeto</h3><p className="mt-2 text-sm text-muted-foreground">Revise a prévia. Registros definitivos só serão criados ao confirmar.</p><Textarea className="mt-3" rows={3} value={structure.overview?.objective ?? ""} onChange={(e) => setStructure({ ...structure, overview: { ...structure.overview, objective: e.target.value } })} /></Card><div className="grid gap-4 lg:grid-cols-2"><PreviewList title="EAP sugerida" items={(structure.wbs ?? []).map((phase: AnyRow) => `${phase.code} ${phase.title} — ${phase.weight}%`)} /><PreviewList title="Tarefas sugeridas" items={tasks.slice(0, 12).map((task) => `${task.title} — ${task.due_date}`)} /><PreviewList title="Riscos sugeridos" items={(structure.risks ?? []).map((risk: AnyRow) => `${risk.title} — ${risk.level}`)} /><PreviewList title="Stakeholders sugeridos" items={(structure.stakeholders ?? []).map((s: AnyRow) => `${s.name} — ${s.role}`)} /><PreviewList title="Organograma sugerido" items={(structure.org_chart ?? []).map((node: AnyRow) => `${node.title}: ${node.person_name}`)} /><PreviewList title="Plano de comunicação" items={(structure.communication_plan ?? []).map((item: AnyRow) => `${item.audience} — ${item.frequency}`)} /><PreviewList title="Documentos analisados" items={documents.map((doc) => doc.name)} /><PreviewList title="Participantes convidados" items={invites.map((invite) => `${invite.invited_email} — ${invite.role}`)} /></div><div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => toast.info("A prévia foi simplificada visualmente. Ajuste campos antes de criar.")}>Pedir para simplificar</Button><Button variant="secondary" onClick={() => toast.info("Para detalhar mais, volte e gere novamente informando mais contexto.")}>Pedir para detalhar mais</Button></div>{structure.schedule_warning && <p className="rounded-lg bg-warning/20 p-3 text-sm text-warning-foreground">{structure.schedule_warning}</p>}</div> main
 }
 
 async function createWbsAndTasks(projectId: string, structure: AnyRow, userId: string) {

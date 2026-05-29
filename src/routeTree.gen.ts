@@ -16,6 +16,10 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
+import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
+import { Route as AuthenticatedFilesRouteImport } from './routes/_authenticated/files'
 import { Route as AuthenticatedSettingsOrganizationRouteImport } from './routes/_authenticated/settings.organization'
 import { Route as AuthenticatedProjectsProjectIdRouteImport } from './routes/_authenticated/projects.$projectId'
 
@@ -53,6 +57,26 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedTasksRoute = AuthenticatedTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedFilesRoute = AuthenticatedFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedSettingsOrganizationRoute =
   AuthenticatedSettingsOrganizationRouteImport.update({
     id: '/settings/organization',
@@ -72,6 +96,10 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/invite/$token': typeof InviteTokenRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/tasks': typeof AuthenticatedTasksRoute
+  '/calendar': typeof AuthenticatedCalendarRoute
+  '/reports': typeof AuthenticatedReportsRoute
+  '/files': typeof AuthenticatedFilesRoute
   '/projects': typeof AuthenticatedProjectsRouteWithChildren
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/settings/organization': typeof AuthenticatedSettingsOrganizationRoute
@@ -82,6 +110,10 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/invite/$token': typeof InviteTokenRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/tasks': typeof AuthenticatedTasksRoute
+  '/calendar': typeof AuthenticatedCalendarRoute
+  '/reports': typeof AuthenticatedReportsRoute
+  '/files': typeof AuthenticatedFilesRoute
   '/projects': typeof AuthenticatedProjectsRouteWithChildren
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/settings/organization': typeof AuthenticatedSettingsOrganizationRoute
@@ -94,6 +126,10 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/tasks': typeof AuthenticatedTasksRoute
+  '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
+  '/_authenticated/reports': typeof AuthenticatedReportsRoute
+  '/_authenticated/files': typeof AuthenticatedFilesRoute
   '/_authenticated/projects': typeof AuthenticatedProjectsRouteWithChildren
   '/_authenticated/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/_authenticated/settings/organization': typeof AuthenticatedSettingsOrganizationRoute
@@ -106,6 +142,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/invite/$token'
     | '/dashboard'
+    | '/tasks'
+    | '/calendar'
+    | '/reports'
+    | '/files'
     | '/projects'
     | '/projects/$projectId'
     | '/settings/organization'
@@ -116,6 +156,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/invite/$token'
     | '/dashboard'
+    | '/tasks'
+    | '/calendar'
+    | '/reports'
+    | '/files'
     | '/projects'
     | '/projects/$projectId'
     | '/settings/organization'
@@ -127,6 +171,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/invite/$token'
     | '/_authenticated/dashboard'
+    | '/_authenticated/tasks'
+    | '/_authenticated/calendar'
+    | '/_authenticated/reports'
+    | '/_authenticated/files'
     | '/_authenticated/projects'
     | '/_authenticated/projects/$projectId'
     | '/_authenticated/settings/organization'
@@ -191,6 +239,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/tasks': {
+      id: '/_authenticated/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof AuthenticatedTasksRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/calendar': {
+      id: '/_authenticated/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof AuthenticatedCalendarRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/files': {
+      id: '/_authenticated/files'
+      path: '/files'
+      fullPath: '/files'
+      preLoaderRoute: typeof AuthenticatedFilesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings/organization': {
       id: '/_authenticated/settings/organization'
       path: '/settings/organization'
@@ -223,12 +299,20 @@ const AuthenticatedProjectsRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
+  AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
+  AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
+  AuthenticatedFilesRoute: typeof AuthenticatedFilesRoute
   AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRouteWithChildren
   AuthenticatedSettingsOrganizationRoute: typeof AuthenticatedSettingsOrganizationRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedTasksRoute: AuthenticatedTasksRoute,
+  AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
+  AuthenticatedReportsRoute: AuthenticatedReportsRoute,
+  AuthenticatedFilesRoute: AuthenticatedFilesRoute,
   AuthenticatedProjectsRoute: AuthenticatedProjectsRouteWithChildren,
   AuthenticatedSettingsOrganizationRoute:
     AuthenticatedSettingsOrganizationRoute,
