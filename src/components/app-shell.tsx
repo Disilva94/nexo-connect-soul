@@ -1,14 +1,19 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { LayoutDashboard, FolderKanban, Settings, LogOut } from "lucide-react";
+import { CalendarDays, Files, FolderKanban, LayoutDashboard, ListTodo, LogOut, Settings, Users, BarChart3 } from "lucide-react";
 import { brand } from "@/config/brand";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 
 const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/projects", label: "Projetos", icon: FolderKanban },
-  { to: "/settings/organization", label: "Workspace", icon: Settings },
+  { to: "/dashboard", label: "Tarefas", icon: ListTodo },
+  { to: "/dashboard", label: "Calendário", icon: CalendarDays },
+  { to: "/settings/organization", label: "Equipe", icon: Users },
+  { to: "/dashboard", label: "Relatórios", icon: BarChart3 },
+  { to: "/dashboard", label: "Arquivos", icon: Files },
+  { to: "/settings/organization", label: "Configurações", icon: Settings },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
