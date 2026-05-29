@@ -245,7 +245,8 @@ function PreviewStep({ structure, setStructure, documents, invites, tasks }: { s
   
   const documentItems = (structure.documents ?? documents).map((doc: AnyRow | DocDraft | string) => {
     if (typeof doc === "string") return doc;
-    return `${doc.name} — ${doc.category ?? "Outros"}${doc.summary ? `: ${doc.summary}` : ""}`;
+    const d = doc as AnyRow;
+    return `${d.name} — ${d.category ?? "Outros"}${d.summary ? `: ${d.summary}` : ""}`;
   });
 
   return (
