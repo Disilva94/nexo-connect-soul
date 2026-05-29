@@ -14,16 +14,258 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      organization_members: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          role: Database["public"]["Enums"]["org_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id: string
+          role?: Database["public"]["Enums"]["org_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          role?: Database["public"]["Enums"]["org_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      project_members: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string
+          role: Database["public"]["Enums"]["project_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id: string
+          role?: Database["public"]["Enums"]["project_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string
+          role?: Database["public"]["Enums"]["project_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_date: string | null
+          health: Database["public"]["Enums"]["project_health"]
+          id: string
+          name: string
+          org_id: string
+          owner_id: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["project_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          health?: Database["public"]["Enums"]["project_health"]
+          id?: string
+          name: string
+          org_id: string
+          owner_id: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["project_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          health?: Database["public"]["Enums"]["project_health"]
+          id?: string
+          name?: string
+          org_id?: string
+          owner_id?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["project_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          assignee_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          position: number
+          priority: Database["public"]["Enums"]["task_priority"]
+          project_id: string
+          status: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          position?: number
+          priority?: Database["public"]["Enums"]["task_priority"]
+          project_id: string
+          status?: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          position?: number
+          priority?: Database["public"]["Enums"]["task_priority"]
+          project_id?: string
+          status?: Database["public"]["Enums"]["task_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_org_role: {
+        Args: {
+          _org: string
+          _roles: Database["public"]["Enums"]["org_role"][]
+          _user: string
+        }
+        Returns: boolean
+      }
+      has_project_role: {
+        Args: {
+          _project: string
+          _roles: Database["public"]["Enums"]["project_role"][]
+          _user: string
+        }
+        Returns: boolean
+      }
+      is_org_member: { Args: { _org: string; _user: string }; Returns: boolean }
+      is_project_member: {
+        Args: { _project: string; _user: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      org_role: "owner" | "admin" | "member" | "viewer"
+      project_health: "green" | "yellow" | "red"
+      project_role: "manager" | "contributor" | "viewer"
+      project_status: "planning" | "active" | "on_hold" | "closed"
+      task_priority: "low" | "medium" | "high" | "urgent"
+      task_status: "todo" | "in_progress" | "review" | "done"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +392,13 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      org_role: ["owner", "admin", "member", "viewer"],
+      project_health: ["green", "yellow", "red"],
+      project_role: ["manager", "contributor", "viewer"],
+      project_status: ["planning", "active", "on_hold", "closed"],
+      task_priority: ["low", "medium", "high", "urgent"],
+      task_status: ["todo", "in_progress", "review", "done"],
+    },
   },
 } as const
