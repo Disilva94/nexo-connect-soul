@@ -319,7 +319,7 @@ function TaskTable({ projectId, tasks, wbsItems }: { projectId: string; tasks: A
 }
 
 function TimelineTab({ project, tasks, wbsItems }: { project: AnyRow; tasks: AnyRow[]; wbsItems: AnyRow[] }) {
-  const rows: AnyRow[] = [...wbsItems.map((w) => ({ ...w, kind: "EAP" })), ...tasks.map((t) => ({ ...t, kind: "Tarefa" }))].filter((i) => i.start_date || i.due_date || i.end_date);
+  const rows: AnyRow[] = [...wbsItems.map((w) => ({ ...w, kind: "EAP" })), ...tasks.map((t) => ({ ...t, kind: "Tarefa" }))].filter((i: AnyRow) => i.start_date || i.due_date || i.end_date);
   return <Card className="p-6"><h2 className="font-display text-xl font-semibold">Cronograma simples</h2><p className="text-sm text-muted-foreground">Linha do tempo sem Gantt complexo para responder o que vem agora e o que está atrasado.</p><div className="mt-5 space-y-3"><div className="rounded-xl border bg-primary/5 p-4"><strong>Janela do projeto:</strong> {formatDate(project.start_date) || "início aberto"} → {formatDate(project.end_date) || "fim aberto"}</div>{rows.length === 0 ? <EmptyState title="Sem datas" text="Adicione início e término em tarefas ou EAP." /> : rows.map((r) => <div key={`${r.kind}-${r.id}`} className="rounded-xl border bg-card p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{r.kind}: {r.title}</strong><StatusBadge status={r.status} /></div><p className="text-sm text-muted-foreground">{formatDate(r.start_date) || "sem início"} → {formatDate(r.due_date || r.end_date) || "sem término"}</p></div>)}</div></Card>;
 }
 
