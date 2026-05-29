@@ -105,7 +105,6 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
   const [structure, setStructure] = useState<AnyRow | null>(null);
 
   const flattenedTasks = useMemo(() => flattenTasks(structure), [structure]);
- codex/create-saas-platform-nexo-projetos-mxpyiv
 
   function addFiles(files: FileList | null) {
     if (!files) return;
@@ -185,78 +184,6 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
     }
 
 
-  function addFiles(files: FileList | null) {
-    if (!files) return;
-    setDocuments((current) => [
-      ...current,
-      ...Array.from(files).map((file) => ({ id: crypto.randomUUID(), name: file.name, file_type: file.type || "arquivo", description: "", ai_enabled: true, file })),
-    ]);
-  }
-
-  function addInvite() {
-    if (!inviteDraft.invited_email.trim()) return;
-    setInvites((current) => [...current, { ...inviteDraft, invited_email: inviteDraft.invited_email.trim().toLowerCase() }]);
-    setInviteDraft({ invited_email: "", invited_name: "", role: "contributor", message: "" });
-  }
-
-  async function generateStructure() {
-    if (!defaultOrgId || !input.name.trim()) return;
-    setLoading(true);
-    const { data, error } = await supabase.functions.invoke("smart-project-structure", {
-      body: {
-        organization_id: defaultOrgId,
-        ...input,
-        participants: invites,
-        documents: documents.map(({ name, file_type, ai_enabled }) => ({ name, file_type, ai_enabled })),
-      },
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setStructure(data.structure);
-    setStep(5);
-  }
-
-  async function createProjectWithStructure() {
-    if (!defaultOrgId || !user || !structure) return;
-    setLoading(true);
-    const { data: project, error } = await db.from("projects").insert({
-      org_id: defaultOrgId,
-      owner_id: user.id,
-      name: input.name.trim(),
-      description: input.description || null,
-      objective: structure.overview?.objective || input.objective || null,
-      start_date: input.start_date || null,
-      end_date: input.end_date || null,
-      status: "active",
-      health: "green",
-      progress: 0,
-      health_reason: "Projeto criado com estrutura inicial gerada por IA e aguardando execução.",
-      scope: structure.overview?.scope || null,
-      justification: structure.overview?.justification || null,
-      assumptions: structure.overview?.assumptions || null,
-      constraints_text: structure.overview?.constraints || null,
-      success_criteria: structure.overview?.success_criteria || null,
-      main_deliverables: (structure.wbs ?? []).map((phase: AnyRow) => phase.title).join("; "),
-    }).select("id").single();
-    if (error) { setLoading(false); toast.error(error.message); return; }
-
-    const projectId = project.id;
-    await createWbsAndTasks(projectId, structure, user.id);
-    await insertRows("risks", projectId, (structure.risks ?? []).map((risk: AnyRow) => ({ title: risk.title, description: risk.description, probability: risk.probability, impact: risk.impact, level: risk.level, preventive_action: risk.preventive_action, response_plan: risk.response_plan, status: "open" })));
-    await insertRows("stakeholders", projectId, (structure.stakeholders ?? []).map((s: AnyRow) => ({ name: s.name, role: s.role, influence: s.influence, interest: s.interest, communication_channel: s.communication_channel, communication_frequency: s.communication_frequency })));
-    await insertRows("communication_plan_items", projectId, structure.communication_plan ?? []);
-    await insertRows("project_org_chart_nodes", projectId, (structure.org_chart ?? []).map((node: AnyRow, index: number) => ({ ...node, order_index: index })));
-    await uploadDocuments(projectId, defaultOrgId, documents, user.id);
-    await db.from("project_reports").insert({ project_id: projectId, type: "status", title: "Relatório Inicial do Projeto", created_by: user.id, content: structure.initial_report ?? structure });
-
-    for (const invite of invites) {
-      await supabase.functions.invoke("send-project-invite", { body: { project_id: projectId, ...invite } });
-    }
- main
-
     await db.rpc("recalculate_project_progress", { _project_id: projectId });
     setLoading(false);
     toast.success("Projeto completo criado com estrutura de IA e convites por projeto.");
@@ -315,10 +242,11 @@ function GenerateStep({ input, documents, invites, generateStructure, loading }:
 }
 
 function PreviewStep({ structure, setStructure, documents, invites, tasks }: { structure: AnyRow; setStructure: (s: AnyRow) => void; documents: DocDraft[]; invites: InviteDraft[]; tasks: AnyRow[] }) {
-  codex/create-saas-platform-nexo-projetos-mxpyiv
+  
   const documentItems = (structure.documents ?? documents).map((doc: AnyRow | DocDraft | string) => {
     if (typeof doc === "string") return doc;
-    return `${doc.name} — ${doc.category ?? "Outros"}${doc.summary ? `: ${doc.summary}` : ""}`;
+    const d = doc as AnyRow;
+    return `${d.name} — ${d.category ?? "Outros"}${d.summary ? `: ${d.summary}` : ""}`;
   });
 
   return (
@@ -578,9 +506,8 @@ function interpolateDate(startDate: string, dueDate: string, ratio: number) {
   const startTime = new Date(`${startDate}T00:00:00`).getTime();
   const dueTime = new Date(`${dueDate}T00:00:00`).getTime();
   return new Date(startTime + (dueTime - startTime) * ratio).toISOString().slice(0, 10);
-
-  return <div className="space-y-4"><Card className="p-5"><h3 className="font-display text-xl font-semibold">Prévia da estrutura do projeto</h3><p className="mt-2 text-sm text-muted-foreground">Revise a prévia. Registros definitivos só serão criados ao confirmar.</p><Textarea className="mt-3" rows={3} value={structure.overview?.objective ?? ""} onChange={(e) => setStructure({ ...structure, overview: { ...structure.overview, objective: e.target.value } })} /></Card><div className="grid gap-4 lg:grid-cols-2"><PreviewList title="EAP sugerida" items={(structure.wbs ?? []).map((phase: AnyRow) => `${phase.code} ${phase.title} — ${phase.weight}%`)} /><PreviewList title="Tarefas sugeridas" items={tasks.slice(0, 12).map((task) => `${task.title} — ${task.due_date}`)} /><PreviewList title="Riscos sugeridos" items={(structure.risks ?? []).map((risk: AnyRow) => `${risk.title} — ${risk.level}`)} /><PreviewList title="Stakeholders sugeridos" items={(structure.stakeholders ?? []).map((s: AnyRow) => `${s.name} — ${s.role}`)} /><PreviewList title="Organograma sugerido" items={(structure.org_chart ?? []).map((node: AnyRow) => `${node.title}: ${node.person_name}`)} /><PreviewList title="Plano de comunicação" items={(structure.communication_plan ?? []).map((item: AnyRow) => `${item.audience} — ${item.frequency}`)} /><PreviewList title="Documentos analisados" items={documents.map((doc) => doc.name)} /><PreviewList title="Participantes convidados" items={invites.map((invite) => `${invite.invited_email} — ${invite.role}`)} /></div><div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => toast.info("A prévia foi simplificada visualmente. Ajuste campos antes de criar.")}>Pedir para simplificar</Button><Button variant="secondary" onClick={() => toast.info("Para detalhar mais, volte e gere novamente informando mais contexto.")}>Pedir para detalhar mais</Button></div>{structure.schedule_warning && <p className="rounded-lg bg-warning/20 p-3 text-sm text-warning-foreground">{structure.schedule_warning}</p>}</div> main
 }
+
 
 async function createWbsAndTasks(projectId: string, structure: AnyRow, userId: string) {
   for (const [phaseIndex, phase] of (structure.wbs ?? []).entries()) {
