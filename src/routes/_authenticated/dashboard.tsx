@@ -4,10 +4,8 @@ import { projectsQuery, myTasksQuery } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
- codex/create-saas-platform-nexo-projetos-8ui7wb
 
 import { Button } from "@/components/ui/button";
- main
 import { Progress } from "@/components/ui/progress";
 import { brand } from "@/config/brand";
 import { AlertTriangle, CalendarDays, CheckCircle2, FolderKanban, Gauge, ListTodo, ShieldAlert } from "lucide-react";

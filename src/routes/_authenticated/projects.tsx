@@ -1,6 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
- codex/create-saas-platform-nexo-projetos-8ui7wb
 import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 
 import {
@@ -10,13 +9,11 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
- main
 import { projectsQuery, orgsQuery } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
- codex/create-saas-platform-nexo-projetos-8ui7wb
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,7 +38,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
- main
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Plus, Sparkles, Upload, Users } from "lucide-react";
@@ -50,7 +46,6 @@ import { toast } from "sonner";
 
 const db = supabase as any;
 type AnyRow = Record<string, any>;
- codex/create-saas-platform-nexo-projetos-8ui7wb
 type SmartProjectInput = { name: string; project_type: string; description: string; objective: string; start_date: string; end_date: string; complexity: string; area: string; team: string; notes: string };
 type InviteDraft = { invited_email: string; invited_name: string; role: string; message: string };
 type DocDraft = { id: string; name: string; file_type: string; description: string; ai_enabled: boolean; file?: File; file_url?: string };
@@ -91,7 +86,6 @@ type SmartStructurePayload = SmartProjectInput & {
   participants: InviteDraft[];
   documents: Array<{ name: string; file_type: string; ai_enabled: boolean }>;
 };
- main
 
 const roleOptions = [
   { value: "manager", label: "Gerente do projeto" },
@@ -116,19 +110,16 @@ function ProjectsPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold">Projetos</h1>
- codex/create-saas-platform-nexo-projetos-8ui7wb
           <p className="mt-1 text-muted-foreground">Crie projetos completos com apoio de IA e convide pessoas somente para cada projeto.</p>
 
           <p className="mt-1 text-muted-foreground">
             Crie projetos completos com apoio de IA e convide pessoas por projeto.
           </p>
- main
         </div>
         <SmartProjectWizard defaultOrgId={orgs.data?.[0]?.id} />
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
- codex/create-saas-platform-nexo-projetos-8ui7wb
         {projects.isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}
         {!projects.isLoading && projects.data?.length === 0 && (
           <Card className="col-span-full flex flex-col items-center justify-center p-12 text-center">
@@ -190,7 +181,6 @@ function ProjectsPage() {
                     Entrega: {new Date(`${project.end_date}T00:00:00`).toLocaleDateString("pt-BR")}
                   </span>
                 ) : null}
-                main
               </div>
             </Card>
           </Link>
@@ -203,7 +193,6 @@ function ProjectsPage() {
 function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
   const { user } = useAuth();
   const navigate = useNavigate();
- codex/create-saas-platform-nexo-projetos-8ui7wb
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
@@ -215,7 +204,6 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState<SmartProjectInput>({
- main
     name: "",
     project_type: "",
     description: "",
@@ -229,7 +217,6 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
   });
   const [documents, setDocuments] = useState<DocDraft[]>([]);
   const [invites, setInvites] = useState<InviteDraft[]>([]);
- codex/create-saas-platform-nexo-projetos-8ui7wb
   const [inviteDraft, setInviteDraft] = useState<InviteDraft>({ invited_email: "", invited_name: "", role: "contributor", message: "" });
   const [structure, setStructure] = useState<AnyRow | null>(null);
 
@@ -264,13 +251,11 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
         ai_enabled: true,
         file,
       })),
- main
     ]);
   }
 
   function addInvite() {
     if (!inviteDraft.invited_email.trim()) return;
- codex/create-saas-platform-nexo-projetos-8ui7wb
     setInvites((current) => [...current, { ...inviteDraft, invited_email: inviteDraft.invited_email.trim().toLowerCase() }]);
     setInviteDraft({ invited_email: "", invited_name: "", role: "contributor", message: "" });
 
@@ -289,12 +274,10 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
       role: "contributor",
       message: "",
     });
- main
   }
 
   async function generateStructure() {
     if (!defaultOrgId || !input.name.trim()) return;
- codex/create-saas-platform-nexo-projetos-8ui7wb
     setLoading(true);
     const payload = {
       organization_id: defaultOrgId,
@@ -343,7 +326,6 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
       const message = error instanceof Error ? error.message : "Falha ao gerar estrutura.";
       setStructure(buildLocalSmartStructure(payload));
       toast.warning(`Usei uma prévia local porque a geração externa falhou: ${message}`);
- main
     } finally {
       setLoading(false);
       setStep(5);
@@ -352,7 +334,6 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
 
   async function createProjectWithStructure() {
     if (!defaultOrgId || !user || !structure) return;
- codex/create-saas-platform-nexo-projetos-8ui7wb
     setLoading(true);
     const { data: project, error } = await db.from("projects").insert({
       org_id: defaultOrgId,
@@ -506,14 +487,12 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
       toast.success("Projeto completo criado com estrutura de IA.");
     }
 
- main
     navigate({ to: "/projects/$projectId", params: { projectId } });
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
- codex/create-saas-platform-nexo-projetos-8ui7wb
         <Button disabled={!defaultOrgId}><Sparkles className="mr-2 h-4 w-4" />Novo projeto com IA</Button>
       </DialogTrigger>
 
@@ -523,12 +502,10 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
         </Button>
       </DialogTrigger>
 
- main
       <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Criação inteligente de projeto</DialogTitle>
         </DialogHeader>
- codex/create-saas-platform-nexo-projetos-8ui7wb
         <div className="mb-4 grid gap-2 md:grid-cols-5">
           {["Informações", "Documentos", "Participantes", "Gerar IA", "Prévia"].map((label, index) => <div key={label} className={`rounded-lg px-3 py-2 text-xs font-medium ${step === index + 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{index + 1}. {label}</div>)}
         </div>
@@ -625,7 +602,6 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
                 {loading ? "Criando..." : "Criar projeto com esta estrutura"}
               </Button>
             ) : null}
- main
           </div>
         </DialogFooter>
       </DialogContent>
@@ -633,7 +609,6 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
   );
 }
 
- codex/create-saas-platform-nexo-projetos-8ui7wb
 function BasicStep({ input, setInput }: { input: SmartProjectInput; setInput: Dispatch<SetStateAction<SmartProjectInput>> }) {
   return <div className="grid gap-4 md:grid-cols-2"><Field label="Nome do projeto"><Input required value={input.name} onChange={(e) => setInput({ ...input, name: e.target.value })} /></Field><Field label="Tipo do projeto"><Input value={input.project_type} onChange={(e) => setInput({ ...input, project_type: e.target.value })} /></Field><Field label="Descrição do que será feito"><Textarea value={input.description} onChange={(e) => setInput({ ...input, description: e.target.value })} /></Field><Field label="Objetivo principal"><Textarea value={input.objective} onChange={(e) => setInput({ ...input, objective: e.target.value })} /></Field><Field label="Data de início"><Input type="date" value={input.start_date} onChange={(e) => setInput({ ...input, start_date: e.target.value })} /></Field><Field label="Data final desejada"><Input type="date" value={input.end_date} onChange={(e) => setInput({ ...input, end_date: e.target.value })} /></Field><Field label="Complexidade"><Select value={input.complexity} onValueChange={(complexity) => setInput({ ...input, complexity })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="simple">Simples</SelectItem><SelectItem value="medium">Médio</SelectItem><SelectItem value="advanced">Avançado</SelectItem></SelectContent></Select></Field><Field label="Área do projeto"><Select value={input.area} onValueChange={(area) => setInput({ ...input, area })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["acadêmico","software","marketing","evento","consultoria","implantação","pesquisa","empresarial","outro"].map((area) => <SelectItem key={area} value={area}>{area}</SelectItem>)}</SelectContent></Select></Field><Field label="Equipe inicial"><Textarea value={input.team} onChange={(e) => setInput({ ...input, team: e.target.value })} /></Field><Field label="Observações importantes"><Textarea value={input.notes} onChange={(e) => setInput({ ...input, notes: e.target.value })} /></Field></div>;
 }
@@ -979,14 +954,12 @@ function PreviewStep({
       return `${item.name} — ${item.category ?? "Outros"}${item.summary ? `: ${item.summary}` : ""}`;
     },
   );
- main
 
   return (
     <div className="space-y-4">
       <Card className="p-5">
         <h3 className="font-display text-xl font-semibold">Prévia da estrutura do projeto</h3>
         <p className="mt-2 text-sm text-muted-foreground">
- codex/create-saas-platform-nexo-projetos-8ui7wb
           Revise a prévia completa. Nada definitivo é salvo em EAP, tarefas, riscos, documentos ou convites até você clicar em “Criar projeto com esta estrutura”.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -1024,12 +997,10 @@ function PreviewStep({
                 })
               }
             />
- main
           </Field>
         </div>
       </Card>
 
- codex/create-saas-platform-nexo-projetos-8ui7wb
       {structure.schedule_warning && <p className="rounded-lg bg-warning/20 p-3 text-sm text-warning-foreground">{structure.schedule_warning}</p>}
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -1137,13 +1108,11 @@ function PreviewStep({
             ...(structure.initial_report?.next_steps ?? []),
           ].filter(Boolean)}
         />
- main
       </div>
     </div>
   );
 }
 
- codex/create-saas-platform-nexo-projetos-8ui7wb
 type SmartStructurePayload = SmartProjectInput & {
   organization_id: string;
   participants: InviteDraft[];
@@ -1167,7 +1136,6 @@ function buildLocalSmartStructure(payload: SmartStructurePayload) {
     payload.end_date ||
     addDays(start, payload.complexity === "advanced" ? 90 : payload.complexity === "medium" ? 45 : 21);
 
- main
   const phaseTemplates: Array<[string, string, number, string[]]> = academic
     ? [
         ["1.0", "Pesquisa e diagnóstico", 20, ["Levantamento de referências", "Análise dos documentos", "Definição do problema"]],
@@ -1192,10 +1160,8 @@ function buildLocalSmartStructure(payload: SmartStructurePayload) {
   const wbs = phaseTemplates.map(([code, title, weight, packages], phaseIndex) => {
     const phaseStart = interpolateDate(start, end, phaseIndex / phaseTemplates.length);
     const phaseEnd = interpolateDate(start, end, (phaseIndex + 1) / phaseTemplates.length);
- codex/create-saas-platform-nexo-projetos-8ui7wb
 
 
- main
     return {
       code,
       title,
@@ -1204,12 +1170,10 @@ function buildLocalSmartStructure(payload: SmartStructurePayload) {
       status: "todo",
       start_date: phaseStart,
       due_date: phaseEnd,
- codex/create-saas-platform-nexo-projetos-8ui7wb
       justification: "Sugestão gerada a partir das informações fornecidas no assistente de criação.",
       packages: (packages as string[]).map((packageTitle, packageIndex) => ({
 
       packages: packages.map((packageTitle, packageIndex) => ({
- main
         code: `${phaseIndex + 1}.${packageIndex + 1}`,
         title: packageTitle,
         type: "package",
@@ -1217,12 +1181,10 @@ function buildLocalSmartStructure(payload: SmartStructurePayload) {
         status: "todo",
         start_date: phaseStart,
         due_date: phaseEnd,
- codex/create-saas-platform-nexo-projetos-8ui7wb
         justification: "Pacote sugerido para transformar o objetivo em entregas gerenciáveis.",
         tasks: buildPackageTasks(packageTitle, String(title), phaseStart, phaseEnd),
 
         tasks: buildPackageTasks(packageTitle, title, phaseStart, phaseEnd),
- main
       })),
     };
   });
@@ -1233,7 +1195,6 @@ function buildLocalSmartStructure(payload: SmartStructurePayload) {
   const documentSummaries = payload.documents.map((document) => ({
     name: document.name,
     category: classifyLocalDocument(document.name),
- codex/create-saas-platform-nexo-projetos-8ui7wb
     summary: "Documento incluído no assistente. O processamento completo será feito depois que o projeto existir e o arquivo estiver salvo com project_id.",
     important_points: ["Validar conteúdo", "Relacionar com a EAP", "Confirmar permissão de uso pela IA"],
     possible_tasks: ["Ler documento", "Extrair requisitos", "Vincular pontos relevantes às entregas"],
@@ -1241,12 +1202,10 @@ function buildLocalSmartStructure(payload: SmartStructurePayload) {
 
     summary:
       "Documento incluído no assistente. O processamento completo será feito depois que o projeto existir.",
- main
     ai_enabled: document.ai_enabled,
   }));
 
   const stakeholders = [
- codex/create-saas-platform-nexo-projetos-8ui7wb
     { name: invitedClient?.invited_name || invitedClient?.invited_email || "Cliente/Patrocinador", role: "Aprovação e direcionamento", influence: "high", interest: "high", communication_channel: "E-mail ou reunião", communication_frequency: "Semanal" },
     { name: invitedProfessor?.invited_name || invitedProfessor?.invited_email || "Professor/Orientador", role: "Orientação e avaliação", influence: academic ? "high" : "medium", interest: "high", communication_channel: "Reunião de acompanhamento", communication_frequency: "Quinzenal" },
     { name: "Equipe do projeto", role: "Execução das entregas", influence: "medium", interest: "high", communication_channel: "Kanban e checkpoints", communication_frequency: "2x por semana" },
@@ -1284,12 +1243,10 @@ function buildLocalSmartStructure(payload: SmartStructurePayload) {
   ];
 
   const communicationPlan = stakeholders.map((stakeholder) => ({
- main
     audience: stakeholder.name,
     subject: "Status, próximos passos, riscos e decisões pendentes",
     channel: stakeholder.communication_channel,
     frequency: stakeholder.communication_frequency
-    codex/create-saas-platform-nexo-projetos-8ui7wb
     notes: "Plano inicial sugerido; ajuste conforme disponibilidade dos participantes.",
   }));
 
@@ -1339,12 +1296,10 @@ function buildLocalSmartStructure(payload: SmartStructurePayload) {
     daysBetween(start, end) < (payload.complexity === "advanced" ? 45 : payload.complexity === "medium" ? 21 : 10)
       ? "O prazo informado parece apertado para a quantidade de atividades sugeridas."
       : "Cronograma inicial gerado de forma proporcional ao prazo informado.";
- main
 
   return {
     overview: {
       name: payload.name,
- codex/create-saas-platform-nexo-projetos-8ui7wb
       objective: payload.objective || `Estruturar e executar ${payload.name} com entregas claras, responsáveis e prazos controlados.`,
       scope: payload.description || "Escopo inicial sugerido a partir das informações preenchidas no assistente.",
       justification: `Projeto classificado como ${payload.area || payload.project_type || "geral"}, com estrutura inicial criada para planejamento, execução, controle e encerramento.`,
@@ -1363,7 +1318,6 @@ function buildLocalSmartStructure(payload: SmartStructurePayload) {
         payload.notes || "Nenhuma restrição específica foi informada; revise esta seção antes de aprovar a estrutura.",
       success_criteria:
         "EAP aprovada, entregas concluídas no prazo, riscos críticos tratados e relatório final aprovado.",
-        main
     },
     wbs,
     risks,
@@ -1466,12 +1420,10 @@ function buildPackageTasks(
     {
       title: `Planejar ${packageTitle}`,
       description: `Definir abordagem, entradas necessárias e critérios para ${packageTitle}.`,
- main
       priority: "high",
       status: "todo",
       start_date: startDate,
       due_date: interpolateDate(startDate, dueDate, 0.35),
- codex/create-saas-platform-nexo-projetos-8ui7wb
       dependencies: [],
       checklist: ["Confirmar escopo", "Identificar responsáveis", "Validar entradas", "Registrar plano"],
       completion_criteria: "Plano validado e registrado no projeto.",
@@ -1487,12 +1439,10 @@ function buildPackageTasks(
     {
       title: `Executar ${packageTitle}`,
       description: `Produzir as entregas previstas para ${packageTitle} na fase ${phaseTitle}.`,
- main
       priority: "medium",
       status: "todo",
       start_date: interpolateDate(startDate, dueDate, 0.35),
       due_date: interpolateDate(startDate, dueDate, 0.75),
- codex/create-saas-platform-nexo-projetos-8ui7wb
       dependencies: [`Planejar ${packageTitle}`],
       checklist: ["Executar atividades", "Atualizar status", "Anexar evidências", "Sinalizar impedimentos"],
       completion_criteria: "Entrega produzida e pronta para validação.",
@@ -1508,12 +1458,10 @@ function buildPackageTasks(
     {
       title: `Validar ${packageTitle}`,
       description: `Revisar qualidade e aderência de ${packageTitle} à fase ${phaseTitle}.`,
- main
       priority: "medium",
       status: "todo",
       start_date: interpolateDate(startDate, dueDate, 0.75),
       due_date: dueDate,
- codex/create-saas-platform-nexo-projetos-8ui7wb
       dependencies: [`Executar ${packageTitle}`],
       checklist: ["Revisar critérios", "Coletar feedback", "Corrigir pendências", "Aprovar entrega"],
       completion_criteria: "Entrega validada pelo responsável ou stakeholder definido.",
@@ -1521,7 +1469,6 @@ function buildPackageTasks(
 
       checklist: ["Revisar critérios", "Coletar feedback", "Corrigir pendências", "Aprovar entrega"],
       completion_criteria: "Entrega validada pelo responsável ou stakeholder definido.",
- main
     },
   ];
 }
@@ -1535,13 +1482,11 @@ function classifyLocalDocument(name: string) {
   if (lower.includes("ata")) return "Ata";
   if (lower.includes("escopo")) return "Escopo";
   if (lower.includes("cronograma")) return "Cronograma";
- codex/create-saas-platform-nexo-projetos-8ui7wb
   if (lower.includes("financeiro") || lower.includes("orc") || lower.includes("orç")) return "Financeiro";
 
   if (lower.includes("financeiro") || lower.includes("orc") || lower.includes("orç")) {
     return "Financeiro";
   }
- main
   return "Outros";
 }
 
@@ -1550,7 +1495,6 @@ function todayIso() {
 }
 
 function addDays(date: string, days: number) {
- codex/create-saas-platform-nexo-projetos-8ui7wb
   const d = new Date(`${date}T00:00:00`);
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
@@ -1569,7 +1513,6 @@ function daysBetween(startDate: string, dueDate: string) {
     (new Date(`${dueDate}T00:00:00`).getTime() - new Date(`${startDate}T00:00:00`).getTime()) /
       86400000,
   );
- main
 }
 
 function interpolateDate(startDate: string, dueDate: string, ratio: number) {
@@ -1578,7 +1521,6 @@ function interpolateDate(startDate: string, dueDate: string, ratio: number) {
   return new Date(startTime + (dueTime - startTime) * ratio).toISOString().slice(0, 10);
 }
 
- codex/create-saas-platform-nexo-projetos-8ui7wb
 async function updateProjectDetails(projectId: string, input: SmartProjectInput, structure: AnyRow, warnings: string[]) {
 
 async function updateProjectDetails(
@@ -1587,7 +1529,6 @@ async function updateProjectDetails(
   structure: AnyRow,
   warnings: string[],
 ) {
- main
   const patch = {
     objective: structure.overview?.objective || input.objective || null,
     progress: 0,
@@ -1601,15 +1542,12 @@ async function updateProjectDetails(
     success_criteria: structure.overview?.success_criteria || null,
     main_deliverables: (structure.wbs ?? []).map((phase: AnyRow) => phase.title).join("; "),
   };
- codex/create-saas-platform-nexo-projetos-8ui7wb
 
 
- main
   const { error } = await db.from("projects").update(patch).eq("id", projectId);
   if (error) warnings.push(`detalhes do projeto: ${error.message}`);
 }
 
- codex/create-saas-platform-nexo-projetos-8ui7wb
 async function createWbsAndTasks(projectId: string, structure: AnyRow, userId: string, warnings: string[] = []) {
   for (const [phaseIndex, phase] of (structure.wbs ?? []).entries()) {
     const { data: phaseRow, error: phaseError } = await db.from("wbs_items").insert({ project_id: projectId, code: phase.code, title: phase.title, type: "phase", weight: phase.weight, start_date: phase.start_date, due_date: phase.due_date, order_index: phaseIndex }).select("id").single();
@@ -1716,12 +1654,10 @@ async function insertTaskRowsWithFallback(
     position: row.position ?? index,
   }));
 
- main
   const { error: fallbackError } = await db.from("tasks").insert(fallbackRows);
   if (fallbackError) warnings.push(`tarefas: ${fallbackError.message}`);
 }
 
- codex/create-saas-platform-nexo-projetos-8ui7wb
 async function insertRows(table: string, projectId: string, rows: AnyRow[], warnings: string[] = []) {
   if (!rows.length) return;
   const { error } = await db.from(table).insert(rows.map((row) => ({ ...row, project_id: projectId })));
@@ -1752,12 +1688,10 @@ async function uploadDocuments(
   userId: string,
   warnings: string[] = [],
 ) {
-main
   for (const doc of documents) {
     const documentId = doc.id;
     let fileUrl = doc.file_url ?? null;
     let status = "pending";
- codex/create-saas-platform-nexo-projetos-8ui7wb
     if (doc.file) {
       const path = `${orgId}/${projectId}/documents/${documentId}/${doc.file.name}`;
       const { error } = await supabase.storage.from("project-documents").upload(path, doc.file, { upsert: true });
@@ -1769,12 +1703,10 @@ main
         .from("project-documents")
         .upload(path, doc.file, { upsert: true });
 
- main
       status = error ? "error" : "pending";
       fileUrl = path;
       if (error) warnings.push(`upload ${doc.name}: ${error.message}`);
     }
- codex/create-saas-platform-nexo-projetos-8ui7wb
     const { error: docError } = await db.from("project_documents").insert({ id: documentId, project_id: projectId, uploaded_by: userId, name: doc.name, file_type: doc.file_type, file_url: fileUrl, description: doc.description, processing_status: status, ai_enabled: doc.ai_enabled });
     if (docError) warnings.push(`documento ${doc.name}: ${docError.message}`);
   }
@@ -1861,4 +1793,3 @@ function HealthDot({ health }: { health: "green" | "yellow" | "red" | null | und
 
   return <span className={`h-2.5 w-2.5 rounded-full ${cls}`} />;
 }
- main
