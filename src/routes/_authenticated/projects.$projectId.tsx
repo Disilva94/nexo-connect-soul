@@ -629,20 +629,41 @@ function NewInviteDialog({ projectId }: { projectId: string }) {
   );
 }
 
-function NewRiskDialog({ projectId }: { projectId: string }) { return <QuickInsertDialog title="Novo risco" button="Novo risco" fields={["title", "description", "preventive_action", "response_plan"]} table="risks" projectId={projectId} defaults={{ probability: "medium", impact: "high", level: "critical", status: "open" }} />; }
-function NewCostDialog({ projectId }: { projectId: string }) { return <QuickInsertDialog title="Novo custo" button="Novo custo" fields={["description", "planned_value", "actual_value"]} table="costs" projectId={projectId} defaults={{ category: "other" }} />; }
-function NewDocumentDialog({ projectId }: { projectId: string }) { const { user } = useAuth(); return <QuickInsertDialog title="Novo documento/link" button="Adicionar documento" fields={["name", "file_type", "file_url", "description"]} table="project_documents" projectId={projectId} defaults={{ uploaded_by: user?.id, processing_status: "pending", ai_enabled: true }} />; }
+function NewRiskDialog({ projectId }: { projectId: string }) {
+  return <QuickInsertDialog title="Novo risco" button="Novo risco" fields={["title", "description", "preventive_action", "response_plan"]} table="risks" projectId={projectId} defaults={{ probability: "medium", impact: "high", level: "critical", status: "open" }} />;
+}
+
+function NewCostDialog({ projectId }: { projectId: string }) {
+  return <QuickInsertDialog title="Novo custo" button="Novo custo" fields={["description", "planned_value", "actual_value"]} table="costs" projectId={projectId} defaults={{ category: "other" }} />;
+}
+
+function NewDocumentDialog({ projectId }: { projectId: string }) {
+  const { user } = useAuth();
+  return <QuickInsertDialog title="Novo documento/link" button="Adicionar documento" fields={["name", "file_type", "file_url", "description"]} table="project_documents" projectId={projectId} defaults={{ uploaded_by: user?.id, processing_status: "pending", ai_enabled: true }} />;
+}
 
 function QuickInsertDialog({ title, button, fields, table, projectId, defaults }: { title: string; button: string; fields: string[]; table: string; projectId: string; defaults: AnyRow }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<AnyRow>({});
   const qc = useQueryClient();
-  async function create(e: FormEvent) { e.preventDefault(); const payload: AnyRow = { ...defaults, ...form, project_id: projectId }; for (const k of ["planned_value", "actual_value"]) if (payload[k]) payload[k] = Number(payload[k]); const { error } = await db.from(table).insert(payload); if (error) toast.error(error.message); else { qc.invalidateQueries({ queryKey: [table, projectId] }); setOpen(false); setForm({}); } }
+
+  async function create(e: FormEvent) {
+    e.preventDefault();
+    const payload: AnyRow = { ...defaults, ...form, project_id: projectId };
+    for (const k of ["planned_value", "actual_value"]) if (payload[k]) payload[k] = Number(payload[k]);
+    const { error } = await db.from(table).insert(payload);
+    if (error) toast.error(error.message);
+    else {
+      qc.invalidateQueries({ queryKey: [table, projectId] });
+      setOpen(false);
+      setForm({});
+    }
+  }
+
   return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button variant="secondary"><Plus className="mr-2 h-4 w-4" />{button}</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader><form className="space-y-3" onSubmit={create}>{fields.map((f) => <div key={f}><Label>{labelFor(f)}</Label>{f.includes("description") || f.includes("action") || f.includes("plan") ? <Textarea value={form[f] ?? ""} onChange={(e) => setForm({ ...form, [f]: e.target.value })} /> : <Input required={f === "title" || f === "name" || f === "description"} value={form[f] ?? ""} onChange={(e) => setForm({ ...form, [f]: e.target.value })} />}</div>)}<DialogFooter><Button type="submit">Salvar</Button></DialogFooter></form></DialogContent></Dialog>;
 }
 
 function CreateReportButton({ projectId, project, metrics }: { projectId: string; project: AnyRow; metrics: AnyRow }) { const qc = useQueryClient(); const { user } = useAuth(); return <Button variant="secondary" onClick={async () => { const { error } = await db.from("project_reports").insert({ project_id: projectId, type: "status", title: `Status — ${project.name}`, created_by: user?.id, content: { progress: metrics.progress, health_reason: metrics.healthReason } }); if (error) toast.error(error.message); else qc.invalidateQueries({ queryKey: ["project_reports", projectId] }); }}>Salvar relatório</Button>; }
-
 function MetricCard({ label, value, tone }: { label: string; value: any; tone: "blue" | "green" | "yellow" | "red" }) { const cls = { blue: "bg-primary/10 text-primary", green: "bg-success/10 text-success", yellow: "bg-warning/20 text-warning-foreground", red: "bg-destructive/10 text-destructive" }[tone]; return <Card className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className={`mt-3 inline-flex rounded-xl px-3 py-1 font-display text-2xl font-bold ${cls}`}>{value}</p></Card>; }
 function HealthBadge({ health }: { health: string }) { const map: AnyRow = { green: ["Saudável", "bg-success/15 text-success border-success/30"], yellow: ["Atenção", "bg-warning/15 text-warning-foreground border-warning/40"], red: ["Crítico", "bg-destructive/15 text-destructive border-destructive/40"] }; const v = map[health] ?? map.green; return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${v[1]}`}>{v[0]}</span>; }
 function StatusBadge({ status }: { status: string }) { const cls = status === "done" || status === "closed" ? "bg-success/10 text-success" : status === "blocked" ? "bg-destructive/10 text-destructive" : status === "in_progress" || status === "review" || status === "active" ? "bg-warning/20 text-warning-foreground" : "bg-muted text-muted-foreground"; return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{statusLabels[status] ?? status}</span>; }
