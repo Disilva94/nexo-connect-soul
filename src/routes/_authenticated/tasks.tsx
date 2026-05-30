@@ -10,14 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 
 const db = supabase as any;
@@ -29,12 +21,7 @@ export const Route = createFileRoute("/_authenticated/tasks")({
 });
 
 function TasksPage() {
-  const { user } = useAuth()
-  const qc = useQueryClient();
-  const [status, setStatus] = useState("all");
-  const [projectId, setProjectId] = useState("");
-  const [generating, setGenerating] = useState(false);
-
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState("all");
   const [projectId, setProjectId] = useState("");
@@ -48,13 +35,6 @@ function TasksPage() {
         .from("tasks")
         .select("id,title,description,status,priority,due_date,start_date,progress,project_id,assignee_id,blocked_reason")
         .order("due_date", { ascending: true, nullsFirst: false });
-      if (error) throw error;
-      return data ?? [];
-
-        .select(
-          "id,title,description,status,priority,due_date,start_date,progress,project_id,assignee_id,blocked_reason",
-        )
-        .order("due_date", { ascending: true, nullsFirst: false });
 
       if (error) throw error;
       return (data ?? []) as AnyRow[];
@@ -63,26 +43,11 @@ function TasksPage() {
 
   const projectRows = (projects.data ?? []) as AnyRow[];
   const selectedProjectId = projectId || projectRows[0]?.id || "";
-  const projectById = useMemo(() => new Map(projectRows.map((project: AnyRow) => [project.id, project])), [projectRows]);
-  const rows = (tasks.data ?? []).filter((task: AnyRow) => status === "all" || task.status === status);
-  const lateCount = rows.filter((task: AnyRow) => task.due_date && new Date(`${task.due_date}T00:00:00`) < startOfToday() && task.status !== "done").length;
-
-  async function generateProjectTasks() {
-    const project = projectById.get(selectedProjectId) as AnyRow | undefined;
-    if (!user || !project) return;
-    setGenerating(true);
-    const newTasks = buildExecutionTasks(project, user.id);
-    const { error } = await db.from("tasks").insert(newTasks);
-    if (error) {
-      const fallback = newTasks.map(({ project_id, created_by, title, description, priority, status, due_date, position }) => ({ project_id, created_by, title, description, priority, status, due_date, position }));
-      const { error: fallbackError } = await db.from("tasks").insert(fallback);
-
   const projectById = useMemo(
-    () => new Map(projectRows.map((project) => [project.id, project])),
+    () => new Map(projectRows.map((project: AnyRow) => [project.id, project])),
     [projectRows],
   );
-
-  const rows = (tasks.data ?? []).filter(
+  const rows = ((tasks.data ?? []) as AnyRow[]).filter(
     (task) => status === "all" || task.status === status,
   );
   const lateCount = rows.filter(
@@ -97,37 +62,35 @@ function TasksPage() {
     if (!user || !project) return;
 
     setGenerating(true);
-    const newTasks = buildExecutionTasks(project, user.id);
-    const { error } = await db.from("tasks").insert(newTasks);
+    try {
+      const newTasks = buildExecutionTasks(project, user.id);
+      const { error } = await db.from("tasks").insert(newTasks);
 
-    if (error) {
-      const fallbackRows = newTasks.map(
-        ({ project_id, created_by, title, description, priority, status, due_date, position }) => ({
-          project_id,
-          created_by,
-          title,
-          description,
-          priority,
-          status,
-          due_date,
-          position,
-        }),
-      );
+      if (error) {
+        const fallbackRows = newTasks.map(
+          ({ project_id, created_by, title, description, priority, status, due_date, position }) => ({
+            project_id,
+            created_by,
+            title,
+            description,
+            priority,
+            status,
+            due_date,
+            position,
+          }),
+        );
 
-      const { error: fallbackError } = await db.from("tasks").insert(fallbackRows);
-      if (fallbackError) {
-        toast.error(fallbackError.message);
-        setGenerating(false);
-        return;
+        const { error: fallbackError } = await db.from("tasks").insert(fallbackRows);
+        if (fallbackError) throw fallbackError;
       }
+
+      await queryClient.invalidateQueries({ queryKey: ["all-project-tasks"] });
+      toast.success("Tarefas de execução criadas para o projeto selecionado.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao gerar tarefas.");
+    } finally {
+      setGenerating(false);
     }
-    toast.success("Tarefas de execução criadas para o projeto selecionado.");
-    qc.invalidateQueries({ queryKey: ["all-project-tasks"] });
-
-
-    await queryClient.invalidateQueries({ queryKey: ["all-project-tasks"] });
-    toast.success("Tarefas de execução criadas para o projeto selecionado.");
-    setGenerating(false);
   }
 
   return (
@@ -135,12 +98,6 @@ function TasksPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold">Tarefas</h1>
-          <p className="mt-1 text-muted-foreground">Execução estilo Trello/monday: filtre, acompanhe atrasos e gere tarefas iniciais quando o projeto estiver vazio.</p>
-        </div>
-        <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row">
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="lg:w-52"><SelectValue placeholder="Filtrar status" /></SelectTrigger>
-
           <p className="mt-1 text-muted-foreground">
             Filtre por status, acompanhe atrasos e gere tarefas iniciais para um projeto.
           </p>
@@ -160,12 +117,6 @@ function TasksPage() {
               <SelectItem value="done">Concluído</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={selectedProjectId} onValueChange={setProjectId}>
-            <SelectTrigger className="lg:w-64"><SelectValue placeholder="Projeto para gerar tarefas" /></SelectTrigger>
-            <SelectContent>{projectRows.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent>
-          </Select>
-          <Button onClick={generateProjectTasks} disabled={!selectedProjectId || generating}>{generating ? "Gerando..." : "Recriar tarefas"}</Button>
-
 
           <Select value={selectedProjectId} onValueChange={setProjectId}>
             <SelectTrigger className="lg:w-64">
@@ -189,24 +140,16 @@ function TasksPage() {
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         <Metric label="Tarefas visíveis" value={rows.length} />
         <Metric label="Atrasadas" value={lateCount} tone={lateCount ? "red" : "green"} />
-        <Metric label="Concluídas" value={rows.filter((task: AnyRow) => task.status === "done").length} tone="green" />
-
-        <Metric label="Atrasadas" value={lateCount} />
         <Metric
           label="Concluídas"
           value={rows.filter((task) => task.status === "done").length}
+          tone="green"
         />
       </div>
 
       <KanbanSummary tasks={rows} />
 
       <div className="mt-8 grid gap-3">
-        {tasks.isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando tarefas...</Card>}
-        {!tasks.isLoading && rows.length === 0 && <Card className="p-10 text-center text-muted-foreground">Nenhuma tarefa encontrada. Escolha um projeto e clique em “Recriar tarefas”.</Card>}
-        {rows.map((task: AnyRow) => {
-          const project = projectById.get(task.project_id) as AnyRow | undefined;
-          const late = task.due_date && new Date(`${task.due_date}T00:00:00`) < startOfToday() && task.status !== "done";
-
         {tasks.isLoading ? (
           <Card className="p-6 text-sm text-muted-foreground">Carregando tarefas...</Card>
         ) : null}
@@ -233,13 +176,6 @@ function TasksPage() {
                       <h3 className="font-semibold">{task.title}</h3>
                       <StatusBadge status={task.status} />
                       <PriorityBadge priority={task.priority} />
-                      {late && <Badge variant="destructive">Atrasada</Badge>}
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{project?.name ?? "Projeto"} · Prazo: {formatDate(task.due_date) || "sem prazo"}</p>
-                    {task.blocked_reason && <p className="mt-2 text-sm text-destructive">Bloqueio: {task.blocked_reason}</p>}
-                  </div>
-                  <div className="w-full lg:w-48"><Progress value={task.progress ?? 0} /></div>
-
                       {late ? <Badge variant="destructive">Atrasada</Badge> : null}
                     </div>
 
@@ -248,9 +184,7 @@ function TasksPage() {
                     </p>
 
                     {task.blocked_reason ? (
-                      <p className="mt-2 text-sm text-destructive">
-                        Bloqueio: {task.blocked_reason}
-                      </p>
+                      <p className="mt-2 text-sm text-destructive">Bloqueio: {task.blocked_reason}</p>
                     ) : null}
                   </div>
 
@@ -268,8 +202,6 @@ function TasksPage() {
 }
 
 function KanbanSummary({ tasks }: { tasks: AnyRow[] }) {
-  const columns = [
-
   const columns: Array<[string, string]> = [
     ["todo", "A Fazer"],
     ["in_progress", "Fazendo"],
@@ -277,8 +209,6 @@ function KanbanSummary({ tasks }: { tasks: AnyRow[] }) {
     ["blocked", "Bloqueado"],
     ["done", "Concluído"],
   ];
-  return <div className="mt-8 grid gap-3 md:grid-cols-5">{columns.map(([id, label]) => <Card key={id} className="p-4"><p className="text-sm font-medium">{label}</p><p className="mt-2 font-display text-2xl font-bold">{tasks.filter((task) => task.status === id).length}</p></Card>)}</div>;
-
 
   return (
     <div className="mt-8 grid gap-3 md:grid-cols-5">
@@ -296,9 +226,6 @@ function KanbanSummary({ tasks }: { tasks: AnyRow[] }) {
 
 function buildExecutionTasks(project: AnyRow, userId: string) {
   const start = project.start_date || new Date().toISOString().slice(0, 10);
-  return ["Validar escopo", "Organizar EAP", "Planejar cronograma", "Configurar Kanban", "Levantar riscos", "Registrar documentos", "Executar entrega principal", "Revisar qualidade", "Gerar relatório de status", "Encerrar lições aprendidas"].map((title, index) => ({
-
-
   return [
     "Validar escopo",
     "Organizar EAP",
@@ -326,19 +253,10 @@ function buildExecutionTasks(project: AnyRow, userId: string) {
 
 function Metric({ label, value, tone = "blue" }: { label: string; value: number; tone?: "blue" | "green" | "red" }) {
   const cls = tone === "red" ? "text-destructive" : tone === "green" ? "text-success" : "text-primary";
-  return <Card className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className={`mt-2 font-display text-3xl font-bold ${cls}`}>{value}</p></Card>;
-}
-function StatusBadge({ status }: { status: string }) { return <Badge variant={status === "done" ? "default" : status === "blocked" ? "destructive" : "secondary"}>{({ todo: "A Fazer", in_progress: "Fazendo", review: "Em Revisão", blocked: "Bloqueado", done: "Concluído" } as AnyRow)[status] ?? status}</Badge>; }
-function PriorityBadge({ priority }: { priority: string }) { return <Badge variant={priority === "urgent" || priority === "high" ? "destructive" : "outline"}>{priority}</Badge>; }
-function formatDate(date?: string | null) { return date ? new Date(`${date}T00:00:00`).toLocaleDateString("pt-BR") : ""; }
-function addDays(date: string, days: number) { const d = new Date(`${date}T00:00:00`); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); }
-function startOfToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
-
-function Metric({ label, value }: { label: string; value: number }) {
   return (
     <Card className="p-5">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 font-display text-3xl font-bold text-primary">{value}</p>
+      <p className={`mt-2 font-display text-3xl font-bold ${cls}`}>{value}</p>
     </Card>
   );
 }
@@ -353,26 +271,14 @@ function StatusBadge({ status }: { status: string }) {
   };
 
   return (
-    <Badge
-      variant={
-        status === "done"
-          ? "default"
-          : status === "blocked"
-            ? "destructive"
-            : "secondary"
-      }
-    >
+    <Badge variant={status === "done" ? "default" : status === "blocked" ? "destructive" : "secondary"}>
       {labels[status] ?? status}
     </Badge>
   );
 }
 
 function PriorityBadge({ priority }: { priority: string }) {
-  return (
-    <Badge variant={priority === "urgent" || priority === "high" ? "destructive" : "outline"}>
-      {priority}
-    </Badge>
-  );
+  return <Badge variant={priority === "urgent" || priority === "high" ? "destructive" : "outline"}>{priority}</Badge>;
 }
 
 function formatDate(date?: string | null) {
