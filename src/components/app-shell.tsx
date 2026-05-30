@@ -1,6 +1,10 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+ codex/create-saas-platform-nexo-projetos-8ui7wb
+import { CalendarDays, CheckSquare, Files, FolderKanban, LayoutDashboard, ListTodo, LogOut, Settings, Users, BarChart3 } from "lucide-react";
+
 import { CalendarDays, Files, FolderKanban, LayoutDashboard, ListTodo, LogOut, Settings, Users, BarChart3 } from "lucide-react";
+ main
 import { brand } from "@/config/brand";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -12,6 +16,10 @@ const nav = [
   { to: "/calendar", label: "Calendário", icon: CalendarDays },
   { to: "/settings/organization", label: "Equipe", icon: Users },
   { to: "/reports", label: "Relatórios", icon: BarChart3 },
+ codex/create-saas-platform-nexo-projetos-8ui7wb
+  { to: "/approvals", label: "Aprovações", icon: CheckSquare },
+
+ main
   { to: "/files", label: "Arquivos", icon: Files },
   { to: "/settings/organization", label: "Configurações", icon: Settings },
 ] as const;
