@@ -794,7 +794,8 @@ function PreviewStep({
   const documentItems = (structure.documents ?? documents).map(
     (doc: AnyRow | DocDraft | string) => {
       if (typeof doc === "string") return doc;
-      return `${doc.name} — ${doc.category ?? "Outros"}${doc.summary ? `: ${doc.summary}` : ""}`;
+      const item = doc as AnyRow;
+      return `${item.name} — ${item.category ?? "Outros"}${item.summary ? `: ${item.summary}` : ""}`;
     },
   );
 

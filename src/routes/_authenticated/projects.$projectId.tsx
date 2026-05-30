@@ -319,11 +319,7 @@ function TaskTable({ projectId, tasks, wbsItems }: { projectId: string; tasks: A
 }
 
 function TimelineTab({ project, tasks, wbsItems }: { project: AnyRow; tasks: AnyRow[]; wbsItems: AnyRow[] }) {
- codex/create-saas-platform-nexo-projetos-tsursl
-  const rows = [...wbsItems.map((w) => ({ ...w, kind: "EAP" })), ...tasks.map((t) => ({ ...t, kind: "Tarefa" }))].filter((i) => i.start_date || i.due_date || i.end_date);
-
   const rows: AnyRow[] = [...wbsItems.map((w) => ({ ...w, kind: "EAP" })), ...tasks.map((t) => ({ ...t, kind: "Tarefa" }))].filter((i: AnyRow) => i.start_date || i.due_date || i.end_date);
- main
   return <Card className="p-6"><h2 className="font-display text-xl font-semibold">Cronograma simples</h2><p className="text-sm text-muted-foreground">Linha do tempo sem Gantt complexo para responder o que vem agora e o que está atrasado.</p><div className="mt-5 space-y-3"><div className="rounded-xl border bg-primary/5 p-4"><strong>Janela do projeto:</strong> {formatDate(project.start_date) || "início aberto"} → {formatDate(project.end_date) || "fim aberto"}</div>{rows.length === 0 ? <EmptyState title="Sem datas" text="Adicione início e término em tarefas ou EAP." /> : rows.map((r) => <div key={`${r.kind}-${r.id}`} className="rounded-xl border bg-card p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{r.kind}: {r.title}</strong><StatusBadge status={r.status} /></div><p className="text-sm text-muted-foreground">{formatDate(r.start_date) || "sem início"} → {formatDate(r.due_date || r.end_date) || "sem término"}</p></div>)}</div></Card>;
 }
 
@@ -422,11 +418,7 @@ function NewDocumentDialog({ projectId }: { projectId: string }) { const { user 
 
 function QuickInsertDialog({ title, button, fields, table, projectId, defaults }: { title: string; button: string; fields: string[]; table: string; projectId: string; defaults: AnyRow }) {
   const [open, setOpen] = useState(false); const [form, setForm] = useState<AnyRow>({}); const qc = useQueryClient();
- codex/create-saas-platform-nexo-projetos-tsursl
-  async function create(e: FormEvent) { e.preventDefault(); const payload = { ...defaults, ...form, project_id: projectId }; for (const k of ["planned_value", "actual_value"]) if (payload[k]) payload[k] = Number(payload[k]); const { error } = await db.from(table).insert(payload); if (error) toast.error(error.message); else { qc.invalidateQueries({ queryKey: [table, projectId] }); setOpen(false); setForm({}); } }
-
   async function create(e: FormEvent) { e.preventDefault(); const payload: AnyRow = { ...defaults, ...form, project_id: projectId }; for (const k of ["planned_value", "actual_value"]) if (payload[k]) payload[k] = Number(payload[k]); const { error } = await db.from(table).insert(payload); if (error) toast.error(error.message); else { qc.invalidateQueries({ queryKey: [table, projectId] }); setOpen(false); setForm({}); } }
- main
   return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button variant="secondary"><Plus className="mr-2 h-4 w-4" />{button}</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader><form className="space-y-3" onSubmit={create}>{fields.map((f) => <div key={f}><Label>{labelFor(f)}</Label>{f.includes("description") || f.includes("action") || f.includes("plan") ? <Textarea value={form[f] ?? ""} onChange={(e) => setForm({ ...form, [f]: e.target.value })} /> : <Input required={f === "title" || f === "name" || f === "description"} value={form[f] ?? ""} onChange={(e) => setForm({ ...form, [f]: e.target.value })} />}</div>)}<DialogFooter><Button type="submit">Salvar</Button></DialogFooter></form></DialogContent></Dialog>;
 }
 
