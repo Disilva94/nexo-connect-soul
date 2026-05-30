@@ -1,8 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { CalendarDays, CheckSquare, Files, FolderKanban, LayoutDashboard, ListTodo, LogOut, Settings, Users, BarChart3 } from "lucide-react";
-
-import { CalendarDays, Files, FolderKanban, LayoutDashboard, ListTodo, LogOut, Settings, Users, BarChart3 } from "lucide-react";
 import { brand } from "@/config/brand";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
