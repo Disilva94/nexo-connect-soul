@@ -547,47 +547,6 @@ function NewTaskDialog({ projectId, wbsItems }: { projectId: string; wbsItems: A
   return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Nova tarefa</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Nova tarefa</DialogTitle></DialogHeader><form className="space-y-4" onSubmit={create}><Input required placeholder="Nome da tarefa" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><Textarea placeholder="Descrição" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /><Select value={form.wbs_item_id} onValueChange={(v) => setForm({ ...form, wbs_item_id: v })}><SelectTrigger><SelectValue placeholder="Entrega vinculada" /></SelectTrigger><SelectContent><SelectItem value="none">Sem vínculo com EAP</SelectItem>{wbsItems.map((w) => <SelectItem key={w.id} value={w.id}>{w.code} — {w.title}</SelectItem>)}</SelectContent></Select><Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /><DialogFooter><Button type="submit">Criar</Button></DialogFooter></form></DialogContent></Dialog>;
 }
 
-function NewInviteDialog({ projectId }: { projectId: string }) {
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ invited_email: "", invited_name: "", role: "contributor", message: "" });
-  const [loading, setLoading] = useState(false);
-  async function sendInvite(e: FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-
-  const [message, setMessage] = useState("Qual é a situação atual deste projeto?");
-  const [answer, setAnswer] = useState("");
-  const [loading, setLoading] = useState(false);
-  async function ask() {
-    setLoading(true);
-    const { data, error } = await supabase.functions.invoke("project-ai", { body: { project_id: projectId, conversation_id: conversations[0]?.id, message } });
-    setLoading(false);
-    if (error) toast.error(error.message); else setAnswer(data.answer);
-  }
-  return <div className="grid gap-4 lg:grid-cols-[1fr_320px]"><Card className="p-6"><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /><h2 className="font-display text-xl font-semibold">Assistente do Projeto</h2></div><div className="mt-3 rounded-xl border bg-primary/5 p-4 text-sm text-muted-foreground"><ShieldCheck className="mb-2 h-4 w-4 text-primary" />A IA recebe obrigatoriamente o project_id atual, consulta apenas dados/documentos deste projeto e é read-only por padrão.</div><Textarea className="mt-4" rows={4} value={message} onChange={(e) => setMessage(e.target.value)} /><Button className="mt-3" onClick={ask} disabled={loading || !message.trim()}><Send className="mr-2 h-4 w-4" />{loading ? "Analisando..." : "Perguntar"}</Button>{answer && <div className="mt-5 whitespace-pre-wrap rounded-xl border bg-card p-4 text-sm">{answer}</div>}</Card><Card className="p-6"><h3 className="font-semibold">Histórico isolado</h3><List items={conversations.map((c) => c.title)} empty="Nenhuma conversa neste projeto." /></Card></div>;
-}
-
-function ReportsTab({ projectId, project, metrics, reports }: { projectId: string; project: AnyRow; metrics: AnyRow; reports: AnyRow[] }) {
-  return <Card className="p-6"><div className="flex items-center justify-between"><h2 className="font-display text-xl font-semibold">Relatório de status</h2><CreateReportButton projectId={projectId} project={project} metrics={metrics} /></div><div className="mt-5 rounded-xl border bg-muted/30 p-5"><p><strong>Projeto:</strong> {project.name}</p><p><strong>Objetivo:</strong> {project.objective || project.description || "Não definido"}</p><p><strong>Progresso:</strong> {metrics.progress}%</p><p><strong>Saúde:</strong> {project.health} — {metrics.healthReason}</p><p><strong>Tarefas atrasadas:</strong> {metrics.lateTasks.length}</p><p><strong>Riscos principais:</strong> {metrics.criticalRisks.map((r: AnyRow) => r.title).join(", ") || "Nenhum crítico"}</p><p><strong>Custos:</strong> R$ {metrics.budgetActual.toLocaleString("pt-BR")} / R$ {metrics.budgetPlanned.toLocaleString("pt-BR")}</p></div><h3 className="mt-6 font-semibold">Relatórios salvos</h3><List items={reports.map((r) => `${r.title} — ${r.type}`)} empty="Nenhum relatório salvo." /></Card>;
-}
-
-function ClosureTab({ projectId, project, lessons }: { projectId: string; project: AnyRow; lessons: AnyRow[] }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const qc = useQueryClient();
-  async function addLesson() { const { error } = await db.from("lessons_learned").insert({ project_id: projectId, title, description }); if (error) toast.error(error.message); else { setTitle(""); setDescription(""); qc.invalidateQueries({ queryKey: ["lessons_learned", projectId] }); } }
-  return <Card className="p-6"><h2 className="font-display text-xl font-semibold">Encerramento simples</h2><div className="mt-4 grid gap-4 lg:grid-cols-2"><div className="space-y-3 rounded-xl border p-4"><p><strong>Objetivo inicial:</strong> {project.objective || "Não definido"}</p><p><strong>Entregas finais:</strong> {project.final_deliverables || "Não definido"}</p><p><strong>Aprovação:</strong> {project.approval_notes || "Pendente"}</p><p><strong>Checklist:</strong> validar entregas, registrar custos finais, documentar riscos enfrentados e aprovar encerramento.</p></div><div className="space-y-3 rounded-xl border p-4"><Input placeholder="Título da lição aprendida" value={title} onChange={(e) => setTitle(e.target.value)} /><Textarea placeholder="Descrição" value={description} onChange={(e) => setDescription(e.target.value)} /><Button onClick={addLesson} disabled={!title.trim()}>Adicionar lição</Button></div></div><h3 className="mt-6 font-semibold">Lições aprendidas</h3><List items={lessons.map((l) => `${l.title}: ${l.description || "sem descrição"}`)} empty="Nenhuma lição aprendida registrada." /></Card>;
-}
-
-function NewTaskDialog({ projectId, wbsItems }: { projectId: string; wbsItems: AnyRow[] }) {
-  const { user } = useAuth();
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", priority: "medium" as Priority, due_date: "", wbs_item_id: "none" });
-  async function create(e: FormEvent) { e.preventDefault(); if (!user) return; const { error } = await db.from("tasks").insert({ project_id: projectId, created_by: user.id, title: form.title, description: form.description || null, priority: form.priority, due_date: form.due_date || null, wbs_item_id: form.wbs_item_id === "none" ? null : form.wbs_item_id }); if (error) toast.error(error.message); else { toast.success("Tarefa criada"); qc.invalidateQueries({ queryKey: ["tasks", projectId] }); setOpen(false); setForm({ title: "", description: "", priority: "medium", due_date: "", wbs_item_id: "none" }); } }
-  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Nova tarefa</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Nova tarefa</DialogTitle></DialogHeader><form className="space-y-4" onSubmit={create}><Input required placeholder="Nome da tarefa" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><Textarea placeholder="Descrição" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /><Select value={form.wbs_item_id} onValueChange={(v) => setForm({ ...form, wbs_item_id: v })}><SelectTrigger><SelectValue placeholder="Entrega vinculada" /></SelectTrigger><SelectContent><SelectItem value="none">Sem vínculo com EAP</SelectItem>{wbsItems.map((w) => <SelectItem key={w.id} value={w.id}>{w.code} — {w.title}</SelectItem>)}</SelectContent></Select><Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /><DialogFooter><Button type="submit">Criar</Button></DialogFooter></form></DialogContent></Dialog>;
-}
 
 function NewWbsDialog({ projectId, items }: { projectId: string; items: AnyRow[] }) {
   const qc = useQueryClient(); const [open, setOpen] = useState(false); const [form, setForm] = useState({ code: "", title: "", type: "phase", parent_id: "root", weight: "0" });
