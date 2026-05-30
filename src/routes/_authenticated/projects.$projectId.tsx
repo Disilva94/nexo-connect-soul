@@ -600,17 +600,22 @@ function NewInviteDialog({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ invited_email: "", invited_name: "", role: "contributor", message: "" });
   const [loading, setLoading] = useState(false);
+
   async function sendInvite(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     const { data, error } = await supabase.functions.invoke("send-project-invite", { body: { project_id: projectId, ...form } });
     setLoading(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success(data?.email_status === "sent" ? "Convite enviado por e-mail" : "Convite criado. Configure e-mail para envio automático.");
     qc.invalidateQueries({ queryKey: ["project_invitations", projectId] });
     setOpen(false);
     setForm({ invited_email: "", invited_name: "", role: "contributor", message: "" });
   }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button variant="secondary"><Plus className="mr-2 h-4 w-4" />Convidar pessoas</Button></DialogTrigger>
@@ -629,18 +634,9 @@ function NewInviteDialog({ projectId }: { projectId: string }) {
   );
 }
 
-function NewRiskDialog({ projectId }: { projectId: string }) {
-  return <QuickInsertDialog title="Novo risco" button="Novo risco" fields={["title", "description", "preventive_action", "response_plan"]} table="risks" projectId={projectId} defaults={{ probability: "medium", impact: "high", level: "critical", status: "open" }} />;
-}
-
-function NewCostDialog({ projectId }: { projectId: string }) {
-  return <QuickInsertDialog title="Novo custo" button="Novo custo" fields={["description", "planned_value", "actual_value"]} table="costs" projectId={projectId} defaults={{ category: "other" }} />;
-}
-
-function NewDocumentDialog({ projectId }: { projectId: string }) {
-  const { user } = useAuth();
-  return <QuickInsertDialog title="Novo documento/link" button="Adicionar documento" fields={["name", "file_type", "file_url", "description"]} table="project_documents" projectId={projectId} defaults={{ uploaded_by: user?.id, processing_status: "pending", ai_enabled: true }} />;
-}
+function NewRiskDialog({ projectId }: { projectId: string }) { return <QuickInsertDialog title="Novo risco" button="Novo risco" fields={["title", "description", "preventive_action", "response_plan"]} table="risks" projectId={projectId} defaults={{ probability: "medium", impact: "high", level: "critical", status: "open" }} />; }
+function NewCostDialog({ projectId }: { projectId: string }) { return <QuickInsertDialog title="Novo custo" button="Novo custo" fields={["description", "planned_value", "actual_value"]} table="costs" projectId={projectId} defaults={{ category: "other" }} />; }
+function NewDocumentDialog({ projectId }: { projectId: string }) { const { user } = useAuth(); return <QuickInsertDialog title="Novo documento/link" button="Adicionar documento" fields={["name", "file_type", "file_url", "description"]} table="project_documents" projectId={projectId} defaults={{ uploaded_by: user?.id, processing_status: "pending", ai_enabled: true }} />; }
 
 function QuickInsertDialog({ title, button, fields, table, projectId, defaults }: { title: string; button: string; fields: string[]; table: string; projectId: string; defaults: AnyRow }) {
   const [open, setOpen] = useState(false);
