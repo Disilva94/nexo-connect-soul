@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+ codex/create-saas-platform-nexo-projetos-tsursl
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +16,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { projectsQuery } from "@/lib/queries";
+import { brand } from "@/config/brand";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { FileText } from "lucide-react";
+ main
+
 const db = supabase as any;
 type AnyRow = Record<string, any>;
 
@@ -24,12 +34,15 @@ export const Route = createFileRoute("/_authenticated/files")({
 });
 
 function FilesPage() {
+ codex/create-saas-platform-nexo-projetos-tsursl
   const { user } = useAuth();
   const qc = useQueryClient();
   const [projectId, setProjectId] = useState("");
   const [description, setDescription] = useState("");
   const [aiEnabled, setAiEnabled] = useState(true);
   const [uploading, setUploading] = useState(false);
+
+ main
   const projects = useQuery(projectsQuery);
   const documents = useQuery({
     queryKey: ["all-project-documents"],
@@ -39,6 +52,7 @@ function FilesPage() {
       return data ?? [];
     },
   });
+ codex/create-saas-platform-nexo-projetos-tsursl
   const projectRows = (projects.data ?? []) as AnyRow[];
   const selectedProjectId = projectId || projectRows[0]?.id || "";
   const projectById = new Map(projectRows.map((project: AnyRow) => [project.id, project]));
@@ -105,6 +119,14 @@ function FilesPage() {
         </div>
       </Card>
 
+
+  const projectById = new Map((projects.data ?? []).map((project: AnyRow) => [project.id, project]));
+  const rows = documents.data ?? [];
+  return (
+    <div className="mx-auto max-w-7xl p-6 lg:p-8">
+      <h1 className="font-display text-3xl font-bold">Arquivos</h1>
+      <p className="mt-1 text-muted-foreground">Documentos vinculados aos projetos acessíveis. Nenhum arquivo é listado fora do isolamento por projeto.</p>
+ main
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         <Metric label="Documentos" value={rows.length} />
         <Metric label="Liberados para IA" value={rows.filter((doc: AnyRow) => doc.ai_enabled).length} />

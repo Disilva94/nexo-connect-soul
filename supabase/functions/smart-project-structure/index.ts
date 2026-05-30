@@ -63,8 +63,19 @@ serve(async (req) => {
       })
       .select("id")
       .single();
+ codex/create-saas-platform-nexo-projetos-tsursl
 
     return new Response(JSON.stringify({ preview_id: preview?.id ?? null, preview_warning: previewError?.message ?? null, structure }), {
+
+ codex/create-saas-platform-nexo-projetos-mxpyiv
+
+    return new Response(JSON.stringify({ preview_id: preview?.id ?? null, preview_warning: previewError?.message ?? null, structure }), {
+
+    if (previewError) throw previewError;
+
+    return new Response(JSON.stringify({ preview_id: preview.id, structure }), {
+ main
+ main
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

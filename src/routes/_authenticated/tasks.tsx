@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+ codex/create-saas-platform-nexo-projetos-tsursl
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +13,17 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { projectsQuery } from "@/lib/queries";
+import { brand } from "@/config/brand";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useMemo, useState } from "react";
+ main
+
 const db = supabase as any;
 type AnyRow = Record<string, any>;
 
@@ -21,11 +33,15 @@ export const Route = createFileRoute("/_authenticated/tasks")({
 });
 
 function TasksPage() {
+ codex/create-saas-platform-nexo-projetos-tsursl
   const { user } = useAuth();
   const qc = useQueryClient();
   const [status, setStatus] = useState("all");
   const [projectId, setProjectId] = useState("");
   const [generating, setGenerating] = useState(false);
+
+  const [status, setStatus] = useState("all");
+ main
   const projects = useQuery(projectsQuery);
   const tasks = useQuery({
     queryKey: ["all-project-tasks"],
@@ -39,6 +55,7 @@ function TasksPage() {
     },
   });
 
+ codex/create-saas-platform-nexo-projetos-tsursl
   const projectRows = (projects.data ?? []) as AnyRow[];
   const selectedProjectId = projectId || projectRows[0]?.id || "";
   const projectById = useMemo(() => new Map(projectRows.map((project: AnyRow) => [project.id, project])), [projectRows]);
@@ -65,16 +82,30 @@ function TasksPage() {
     setGenerating(false);
   }
 
+
+  const projectById = useMemo(() => new Map((projects.data ?? []).map((project: AnyRow) => [project.id, project])), [projects.data]);
+  const rows = (tasks.data ?? []).filter((task: AnyRow) => status === "all" || task.status === status);
+  const lateCount = rows.filter((task: AnyRow) => task.due_date && new Date(`${task.due_date}T00:00:00`) < startOfToday() && task.status !== "done").length;
+
+ main
   return (
     <div className="mx-auto max-w-7xl p-6 lg:p-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold">Tarefas</h1>
+ codex/create-saas-platform-nexo-projetos-tsursl
           <p className="mt-1 text-muted-foreground">Execução estilo Trello/monday: filtre, acompanhe atrasos e gere tarefas iniciais quando o projeto estiver vazio.</p>
         </div>
         <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row">
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="lg:w-52"><SelectValue placeholder="Filtrar status" /></SelectTrigger>
+
+          <p className="mt-1 text-muted-foreground">Todas as tarefas dos projetos aos quais você tem acesso, sempre filtradas por RLS.</p>
+        </div>
+        <div className="w-full lg:w-56">
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger><SelectValue placeholder="Filtrar status" /></SelectTrigger>
+ main
             <SelectContent>
               <SelectItem value="all">Todos os status</SelectItem>
               <SelectItem value="todo">A Fazer</SelectItem>
@@ -84,11 +115,14 @@ function TasksPage() {
               <SelectItem value="done">Concluído</SelectItem>
             </SelectContent>
           </Select>
+ codex/create-saas-platform-nexo-projetos-tsursl
           <Select value={selectedProjectId} onValueChange={setProjectId}>
             <SelectTrigger className="lg:w-64"><SelectValue placeholder="Projeto para gerar tarefas" /></SelectTrigger>
             <SelectContent>{projectRows.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent>
           </Select>
           <Button onClick={generateProjectTasks} disabled={!selectedProjectId || generating}>{generating ? "Gerando..." : "Recriar tarefas"}</Button>
+
+ main
         </div>
       </div>
 
@@ -98,11 +132,17 @@ function TasksPage() {
         <Metric label="Concluídas" value={rows.filter((task: AnyRow) => task.status === "done").length} tone="green" />
       </div>
 
+ codex/create-saas-platform-nexo-projetos-tsursl
       <KanbanSummary tasks={rows} />
 
       <div className="mt-8 grid gap-3">
         {tasks.isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando tarefas...</Card>}
         {!tasks.isLoading && rows.length === 0 && <Card className="p-10 text-center text-muted-foreground">Nenhuma tarefa encontrada. Escolha um projeto e clique em “Recriar tarefas”.</Card>}
+
+      <div className="mt-8 grid gap-3">
+        {tasks.isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando tarefas...</Card>}
+        {!tasks.isLoading && rows.length === 0 && <Card className="p-10 text-center text-muted-foreground">Nenhuma tarefa encontrada para este filtro.</Card>}
+ main
         {rows.map((task: AnyRow) => {
           const project = projectById.get(task.project_id) as AnyRow | undefined;
           const late = task.due_date && new Date(`${task.due_date}T00:00:00`) < startOfToday() && task.status !== "done";
@@ -131,6 +171,7 @@ function TasksPage() {
   );
 }
 
+ codex/create-saas-platform-nexo-projetos-tsursl
 function KanbanSummary({ tasks }: { tasks: AnyRow[] }) {
   const columns = [
     ["todo", "A Fazer"],
@@ -158,6 +199,8 @@ function buildExecutionTasks(project: AnyRow, userId: string) {
   }));
 }
 
+
+ main
 function Metric({ label, value, tone = "blue" }: { label: string; value: number; tone?: "blue" | "green" | "red" }) {
   const cls = tone === "red" ? "text-destructive" : tone === "green" ? "text-success" : "text-primary";
   return <Card className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className={`mt-2 font-display text-3xl font-bold ${cls}`}>{value}</p></Card>;
@@ -165,5 +208,8 @@ function Metric({ label, value, tone = "blue" }: { label: string; value: number;
 function StatusBadge({ status }: { status: string }) { return <Badge variant={status === "done" ? "default" : status === "blocked" ? "destructive" : "secondary"}>{({ todo: "A Fazer", in_progress: "Fazendo", review: "Em Revisão", blocked: "Bloqueado", done: "Concluído" } as AnyRow)[status] ?? status}</Badge>; }
 function PriorityBadge({ priority }: { priority: string }) { return <Badge variant={priority === "urgent" || priority === "high" ? "destructive" : "outline"}>{priority}</Badge>; }
 function formatDate(date?: string | null) { return date ? new Date(`${date}T00:00:00`).toLocaleDateString("pt-BR") : ""; }
+ codex/create-saas-platform-nexo-projetos-tsursl
 function addDays(date: string, days: number) { const d = new Date(`${date}T00:00:00`); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); }
+
+ main
 function startOfToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }

@@ -153,15 +153,32 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
       org_id: defaultOrgId,
       owner_id: user.id,
       name: input.name.trim(),
+ codex/create-saas-platform-nexo-projetos-tsursl
       description: structure.overview?.objective || input.description || null,
+
+      description: input.description || null,
+      objective: structure.overview?.objective || input.objective || null,
+ main
       start_date: input.start_date || null,
       end_date: input.end_date || null,
       status: "active",
       health: "green",
+ codex/create-saas-platform-nexo-projetos-tsursl
+
+      progress: 0,
+      health_reason: "Projeto criado com estrutura inicial gerada por IA e aguardando execução.",
+      scope: structure.overview?.scope || null,
+      justification: structure.overview?.justification || null,
+      assumptions: structure.overview?.assumptions || null,
+      constraints_text: structure.overview?.constraints || null,
+      success_criteria: structure.overview?.success_criteria || null,
+      main_deliverables: (structure.wbs ?? []).map((phase: AnyRow) => phase.title).join("; "),
+ main
     }).select("id").single();
     if (error) { setLoading(false); toast.error(error.message); return; }
 
     const projectId = project.id;
+ codex/create-saas-platform-nexo-projetos-tsursl
     const warnings: string[] = [];
     await updateProjectDetails(projectId, input, structure, warnings);
     await createWbsAndTasks(projectId, structure, user.id, warnings);
@@ -184,6 +201,24 @@ function SmartProjectWizard({ defaultOrgId }: { defaultOrgId?: string }) {
     } else {
       toast.success("Projeto completo criado com estrutura de IA e convites por projeto.");
     }
+
+    await createWbsAndTasks(projectId, structure, user.id);
+    await insertRows("risks", projectId, (structure.risks ?? []).map((risk: AnyRow) => ({ title: risk.title, description: risk.description, probability: risk.probability, impact: risk.impact, level: risk.level, preventive_action: risk.preventive_action, response_plan: risk.response_plan, status: "open" })));
+    await insertRows("stakeholders", projectId, (structure.stakeholders ?? []).map((s: AnyRow) => ({ name: s.name, role: s.role, influence: s.influence, interest: s.interest, communication_channel: s.communication_channel, communication_frequency: s.communication_frequency })));
+    await insertRows("communication_plan_items", projectId, structure.communication_plan ?? []);
+    await insertRows("project_org_chart_nodes", projectId, (structure.org_chart ?? []).map((node: AnyRow, index: number) => ({ ...node, order_index: index })));
+    await uploadDocuments(projectId, defaultOrgId, documents, user.id);
+    await db.from("project_reports").insert({ project_id: projectId, type: "status", title: "Relatório Inicial do Projeto", created_by: user.id, content: structure.initial_report ?? structure });
+
+    for (const invite of invites) {
+      await supabase.functions.invoke("send-project-invite", { body: { project_id: projectId, ...invite } });
+    }
+
+
+    await db.rpc("recalculate_project_progress", { _project_id: projectId });
+    setLoading(false);
+    toast.success("Projeto completo criado com estrutura de IA e convites por projeto.");
+ main
     qc.invalidateQueries({ queryKey: ["projects"] });
     setOpen(false);
     navigate({ to: "/projects/$projectId", params: { projectId } });
@@ -239,9 +274,17 @@ function GenerateStep({ input, documents, invites, generateStructure, loading }:
 }
 
 function PreviewStep({ structure, setStructure, documents, invites, tasks }: { structure: AnyRow; setStructure: (s: AnyRow) => void; documents: DocDraft[]; invites: InviteDraft[]; tasks: AnyRow[] }) {
+ codex/create-saas-platform-nexo-projetos-tsursl
   const documentItems = (structure.documents ?? documents).map((doc: AnyRow | DocDraft | string) => {
     if (typeof doc === "string") return doc;
     return `${doc.name} — ${doc.category ?? "Outros"}${doc.summary ? `: ${doc.summary}` : ""}`;
+
+  
+  const documentItems = (structure.documents ?? documents).map((doc: AnyRow | DocDraft | string) => {
+    if (typeof doc === "string") return doc;
+    const d = doc as AnyRow;
+    return `${d.name} — ${d.category ?? "Outros"}${d.summary ? `: ${d.summary}` : ""}`;
+ main
   });
 
   return (
@@ -503,6 +546,7 @@ function interpolateDate(startDate: string, dueDate: string, ratio: number) {
   return new Date(startTime + (dueTime - startTime) * ratio).toISOString().slice(0, 10);
 }
 
+ codex/create-saas-platform-nexo-projetos-tsursl
 async function updateProjectDetails(projectId: string, input: SmartProjectInput, structure: AnyRow, warnings: string[]) {
   const patch = {
     objective: structure.overview?.objective || input.objective || null,
@@ -569,6 +613,21 @@ async function uploadDocuments(projectId: string, orgId: string, documents: DocD
     if (docError) warnings.push(`documento ${doc.name}: ${docError.message}`);
   }
 }
+
+
+async function createWbsAndTasks(projectId: string, structure: AnyRow, userId: string) {
+  for (const [phaseIndex, phase] of (structure.wbs ?? []).entries()) {
+    const { data: phaseRow } = await db.from("wbs_items").insert({ project_id: projectId, code: phase.code, title: phase.title, type: "phase", weight: phase.weight, start_date: phase.start_date, due_date: phase.due_date, order_index: phaseIndex }).select("id").single();
+    for (const [pkgIndex, pkg] of (phase.packages ?? []).entries()) {
+      const { data: pkgRow } = await db.from("wbs_items").insert({ project_id: projectId, parent_id: phaseRow?.id, code: pkg.code, title: pkg.title, type: "package", start_date: pkg.start_date, due_date: pkg.due_date, order_index: pkgIndex }).select("id").single();
+      const taskRows = (pkg.tasks ?? []).map((task: AnyRow, taskIndex: number) => ({ project_id: projectId, wbs_item_id: pkgRow?.id, created_by: userId, title: task.title, description: `${task.description}\n\nChecklist: ${(task.checklist ?? []).join("; ")}\nCritério de conclusão: ${task.completion_criteria}`, priority: task.priority, status: "todo", start_date: task.start_date, due_date: task.due_date, position: taskIndex }));
+      if (taskRows.length) await db.from("tasks").insert(taskRows);
+    }
+  }
+}
+async function insertRows(table: string, projectId: string, rows: AnyRow[]) { if (rows.length) await db.from(table).insert(rows.map((row) => ({ ...row, project_id: projectId }))); }
+async function uploadDocuments(projectId: string, orgId: string, documents: DocDraft[], userId: string) { for (const doc of documents) { const documentId = doc.id; let fileUrl = doc.file_url ?? null; let status = "pending"; if (doc.file) { const path = `${orgId}/${projectId}/documents/${documentId}/${doc.file.name}`; const { error } = await supabase.storage.from("project-documents").upload(path, doc.file, { upsert: true }); status = error ? "error" : "pending"; fileUrl = path; } await db.from("project_documents").insert({ id: documentId, project_id: projectId, uploaded_by: userId, name: doc.name, file_type: doc.file_type, file_url: fileUrl, description: doc.description, processing_status: status, ai_enabled: doc.ai_enabled }); } }
+ main
 function flattenTasks(structure: AnyRow | null) { return (structure?.wbs ?? []).flatMap((phase: AnyRow) => (phase.packages ?? []).flatMap((pkg: AnyRow) => (pkg.tasks ?? []).map((task: AnyRow) => ({ ...task, phase: phase.title, package: pkg.title })))); }
 function Field({ label, children }: { label: string; children: ReactNode }) { return <div><Label>{label}</Label>{children}</div>; }
 function PreviewList({ title, items }: { title: string; items: string[] }) { return <Card className="p-4"><h4 className="font-semibold">{title}</h4>{items.length ? <ul className="mt-3 space-y-2 text-sm text-muted-foreground">{items.map((item, index) => <li key={index} className="rounded bg-muted/50 p-2">{item}</li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">Nenhum item.</p>}</Card>; }
