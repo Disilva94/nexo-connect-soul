@@ -1,34 +1,54 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { projectQuery, tasksQuery } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, ChevronLeft } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Bell, CalendarPlus, ChevronLeft, FileText, MailPlus, Plus, Send, ShieldCheck, Sparkles, Users, Video } from "lucide-react";
 import { brand } from "@/config/brand";
 import { toast } from "sonner";
-import type { Database } from "@/integrations/supabase/types";
-import {
-  DndContext, useSensor, useSensors, PointerSensor,
-  type DragEndEvent, useDroppable, useDraggable,
-} from "@dnd-kit/core";
+import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 
-type Task = Database["public"]["Tables"]["tasks"]["Row"];
-type Status = Database["public"]["Enums"]["task_status"];
+const db = supabase as any;
 
-const COLUMNS: { id: Status; label: string }[] = [
-  { id: "todo", label: "A fazer" },
-  { id: "in_progress", label: "Em andamento" },
-  { id: "review", label: "Revisão" },
-  { id: "done", label: "Concluído" },
+type TaskStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
+type Priority = "low" | "medium" | "high" | "urgent";
+type AnyRow = Record<string, any>;
+
+const COLUMNS: { id: TaskStatus; label: string; hint: string }[] = [
+  { id: "todo", label: "A Fazer", hint: "Backlog priorizado" },
+  { id: "in_progress", label: "Fazendo", hint: "Em execução" },
+  { id: "review", label: "Em Revisão", hint: "Validação" },
+  { id: "blocked", label: "Bloqueado", hint: "Precisa de ação" },
+  { id: "done", label: "Concluído", hint: "Entregue" },
 ];
+
+const PROJECT_ROLE_OPTIONS = [
+  { value: "manager", label: "Gerente do projeto" },
+  { value: "contributor", label: "Membro da equipe" },
+  { value: "client", label: "Cliente" },
+  { value: "professor", label: "Professor" },
+  { value: "observer", label: "Observador" },
+] as const;
+
+const statusLabels: Record<string, string> = {
+  todo: "A Fazer",
+  in_progress: "Fazendo",
+  review: "Em Revisão",
+  blocked: "Bloqueado",
+  done: "Concluído",
+};
 
 export const Route = createFileRoute("/_authenticated/projects/$projectId")({
   head: () => ({ meta: [{ title: `Projeto — ${brand.fullName}` }] }),
@@ -39,184 +59,642 @@ function ProjectPage() {
   const { projectId } = Route.useParams();
   const project = useQuery(projectQuery(projectId));
   const tasks = useQuery(tasksQuery(projectId));
+  const wbs = useProjectTable("wbs_items", projectId, "order_index");
+  const risks = useProjectTable("risks", projectId, "created_at");
+  const costs = useProjectTable("costs", projectId, "date");
+  const docs = useProjectTable("project_documents", projectId, "created_at");
+  const conversations = useProjectTable("ai_conversations", projectId, "updated_at");
+  const approvals = useProjectTable("pending_approvals", projectId, "created_at");
+  const invitations = useProjectTable("project_invitations", projectId, "created_at");
+  const members = useProjectTable("project_members", projectId, "created_at");
+  const reports = useProjectTable("project_reports", projectId, "created_at");
+  const lessons = useProjectTable("lessons_learned", projectId, "created_at");
   const qc = useQueryClient();
-
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const metrics = useMemo(() => buildProjectMetrics(project.data as AnyRow, tasks.data ?? [], risks.data, costs.data), [project.data, tasks.data, risks.data, costs.data]);
 
   async function handleDragEnd(e: DragEndEvent) {
     const taskId = e.active.id as string;
-    const newStatus = e.over?.id as Status | undefined;
+    const newStatus = e.over?.id as TaskStatus | undefined;
     if (!newStatus) return;
-    const task = tasks.data?.find((t) => t.id === taskId);
+    const task = (tasks.data as AnyRow[] | undefined)?.find((t) => t.id === taskId);
     if (!task || task.status === newStatus) return;
 
-    qc.setQueryData<Task[]>(["tasks", projectId], (old) =>
-      old?.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)) ?? []
-    );
-    const { error } = await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId);
+    const patch: AnyRow = { status: newStatus, progress: newStatus === "done" ? 100 : task.progress };
+    if (newStatus === "done") patch.completed_at = new Date().toISOString();
+    if (newStatus === "blocked") {
+      const reason = window.prompt("Informe o motivo do bloqueio para manter rastreabilidade:");
+      if (!reason?.trim()) return;
+      patch.blocked_reason = reason.trim();
+    }
+
+    qc.setQueryData<AnyRow[]>(["tasks", projectId], (old) => old?.map((t) => (t.id === taskId ? { ...t, ...patch } : t)) ?? []);
+    const { error } = await db.from("tasks").update(patch).eq("id", taskId).eq("project_id", projectId);
     if (error) {
       toast.error("Falha ao mover tarefa");
       qc.invalidateQueries({ queryKey: ["tasks", projectId] });
+      return;
     }
+    await db.rpc("recalculate_project_progress", { _project_id: projectId });
+    qc.invalidateQueries({ queryKey: ["projects", projectId] });
   }
 
-  if (project.isLoading) {
-    return <div className="p-8 text-muted-foreground">Carregando...</div>;
-  }
-  if (!project.data) {
-    return <div className="p-8">Projeto não encontrado.</div>;
-  }
+  if (project.isLoading) return <div className="p-8 text-muted-foreground">Carregando projeto...</div>;
+  if (!project.data) return <div className="p-8">Projeto não encontrado.</div>;
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="border-b bg-card px-8 py-5">
+    <div className="min-h-screen bg-muted/30">
+      <header className="border-b bg-card px-6 py-5 lg:px-8">
         <Link to="/projects" className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground">
           <ChevronLeft className="h-3 w-3" /> Projetos
         </Link>
-        <div className="mt-1 flex items-center justify-between">
+        <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold">{project.data.name}</h1>
-            {project.data.description && <p className="mt-0.5 text-sm text-muted-foreground">{project.data.description}</p>}
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="font-display text-2xl font-bold">{(project.data as AnyRow).name}</h1>
+              <HealthBadge health={(project.data as AnyRow).health} />
+              <StatusBadge status={(project.data as AnyRow).status} />
+            </div>
+            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+              {(project.data as AnyRow).objective || (project.data as AnyRow).description || "Defina objetivo, EAP, tarefas, riscos e documentos deste projeto."}
+            </p>
           </div>
-          <NewTaskDialog projectId={projectId} />
+          <div className="flex flex-wrap gap-2">
+            <NewWbsDialog projectId={projectId} items={wbs.data} />
+            <NewTaskDialog projectId={projectId} wbsItems={wbs.data} />
+          </div>
         </div>
       </header>
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="flex flex-1 gap-4 overflow-x-auto p-6">
-          {COLUMNS.map((col) => {
-            const items = tasks.data?.filter((t) => t.status === col.id) ?? [];
-            return <Column key={col.id} id={col.id} label={col.label} tasks={items} />;
-          })}
+      <div className="px-4 py-6 lg:px-8">
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="h-auto max-w-full flex-wrap justify-start bg-card p-1 shadow-sm">
+            <TabsTrigger value="overview">Visão geral</TabsTrigger>
+            <TabsTrigger value="wbs">EAP</TabsTrigger>
+            <TabsTrigger value="kanban">Kanban</TabsTrigger>
+            <TabsTrigger value="table">Tabela</TabsTrigger>
+            <TabsTrigger value="timeline">Cronograma</TabsTrigger>
+            <TabsTrigger value="risks">Riscos</TabsTrigger>
+            <TabsTrigger value="costs">Custos</TabsTrigger>
+            <TabsTrigger value="documents">Documentos</TabsTrigger>
+            <TabsTrigger value="ai">IA do Projeto</TabsTrigger>
+            <TabsTrigger value="approvals">Aprovações</TabsTrigger>
+            <TabsTrigger value="reports">Relatórios</TabsTrigger>
+            <TabsTrigger value="closure">Encerramento</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview"><OverviewTab projectId={projectId} project={project.data as AnyRow} metrics={metrics} tasks={tasks.data ?? []} risks={risks.data} invitations={invitations.data} members={members.data} /></TabsContent>
+          <TabsContent value="wbs"><WbsTab projectId={projectId} items={wbs.data} tasks={tasks.data ?? []} /></TabsContent>
+          <TabsContent value="kanban">
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <div className="flex gap-4 overflow-x-auto pb-2">{COLUMNS.map((col) => <KanbanColumn key={col.id} col={col} tasks={(tasks.data ?? []).filter((t: AnyRow) => t.status === col.id)} />)}</div>
+            </DndContext>
+          </TabsContent>
+          <TabsContent value="table"><TaskTable projectId={projectId} tasks={tasks.data ?? []} wbsItems={wbs.data} /></TabsContent>
+          <TabsContent value="timeline"><TimelineTab project={project.data as AnyRow} tasks={tasks.data ?? []} wbsItems={wbs.data} /></TabsContent>
+          <TabsContent value="risks"><RisksTab projectId={projectId} risks={risks.data} /></TabsContent>
+          <TabsContent value="costs"><CostsTab projectId={projectId} costs={costs.data} project={project.data as AnyRow} /></TabsContent>
+          <TabsContent value="documents"><DocumentsTab projectId={projectId} documents={docs.data} /></TabsContent>
+          <TabsContent value="ai"><AiTab projectId={projectId} conversations={conversations.data} /></TabsContent>
+          <TabsContent value="approvals"><ProjectApprovalsTab projectId={projectId} approvals={approvals.data} /></TabsContent>
+          <TabsContent value="reports"><ReportsTab projectId={projectId} project={project.data as AnyRow} metrics={metrics} reports={reports.data} /></TabsContent>
+          <TabsContent value="closure"><ClosureTab projectId={projectId} project={project.data as AnyRow} lessons={lessons.data} /></TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}
+
+function useProjectTable(table: string, projectId: string, orderColumn: string) {
+  return useQuery({
+    queryKey: [table, projectId],
+    queryFn: async () => {
+      const { data, error } = await db.from(table).select("*").eq("project_id", projectId).order(orderColumn, { ascending: table !== "ai_conversations" && table !== "project_documents" ? true : false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+function buildProjectMetrics(project: AnyRow | null | undefined, tasks: AnyRow[], risks: AnyRow[], costs: AnyRow[]) {
+  const openTasks = tasks.filter((t) => t.status !== "done");
+  const lateTasks = openTasks.filter((t) => t.due_date && new Date(t.due_date) < startOfToday());
+  const criticalRisks = risks.filter((r) => r.level === "critical" && r.status !== "closed");
+  const budgetPlanned = Number(project?.budget_planned ?? 0);
+  const actualFromCosts = costs.reduce((sum, c) => sum + Number(c.actual_value ?? 0), 0);
+  const budgetActual = Math.max(Number(project?.budget_actual ?? 0), actualFromCosts);
+  const budgetPct = budgetPlanned > 0 ? Math.round((budgetActual / budgetPlanned) * 100) : 0;
+  const done = tasks.filter((t) => t.status === "done").length;
+  const progress = Number(project?.progress ?? (tasks.length ? Math.round((done / tasks.length) * 100) : 0));
+  const healthReason = criticalRisks.some((r) => !r.preventive_action)
+    ? `Projeto crítico porque possui ${criticalRisks.length} risco(s) crítico(s), incluindo risco sem ação preventiva.`
+    : lateTasks.length > 0 || budgetPct >= 80
+      ? `Projeto em atenção porque possui ${lateTasks.length} tarefa(s) atrasada(s) e ${budgetPct}% do orçamento consumido.`
+      : "Projeto saudável: sem atrasos relevantes, riscos críticos abertos ou estouro de orçamento cadastrados.";
+  return { openTasks, lateTasks, criticalRisks, budgetPlanned, budgetActual, budgetPct, progress, healthReason };
+}
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function OverviewTab({ projectId, project, metrics, tasks, risks, invitations, members }: { projectId: string; project: AnyRow; metrics: AnyRow; tasks: AnyRow[]; risks: AnyRow[]; invitations: AnyRow[]; members: AnyRow[] }) {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Progresso geral" value={`${metrics.progress}%`} tone="blue" />
+        <MetricCard label="Tarefas atrasadas" value={metrics.lateTasks.length} tone={metrics.lateTasks.length ? "red" : "green"} />
+        <MetricCard label="Riscos críticos" value={metrics.criticalRisks.length} tone={metrics.criticalRisks.length ? "red" : "green"} />
+        <MetricCard label="Orçamento consumido" value={`${metrics.budgetPct}%`} tone={metrics.budgetPct >= 80 ? "yellow" : "blue"} />
+      </div>
+      <Card className="p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <h2 className="font-display text-xl font-semibold">Resumo executivo</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{metrics.healthReason}</p>
+            <div className="mt-4"><Progress value={metrics.progress} /></div>
+          </div>
+          <div className="rounded-xl border bg-muted/40 p-4 text-sm">
+            <p><strong>Início:</strong> {formatDate(project.start_date) || "Não definido"}</p>
+            <p><strong>Prazo final:</strong> {formatDate(project.end_date) || "Não definido"}</p>
+            <p><strong>Prioridade:</strong> {project.priority ?? "medium"}</p>
+          </div>
         </div>
-      </DndContext>
+      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-6"><h3 className="font-semibold">Próximas tarefas</h3><List items={tasks.filter((t) => t.status !== "done").slice(0, 6).map((t) => `${t.title} — ${formatDate(t.due_date) || "sem prazo"}`)} empty="Nenhuma tarefa aberta." /></Card>
+        <Card className="p-6"><h3 className="font-semibold">Principais riscos</h3><List items={risks.slice(0, 6).map((r) => `${r.title} — ${r.level}`)} empty="Nenhum risco cadastrado." /></Card>
+      </div>
+      <TeamCard projectId={projectId} members={members} invitations={invitations} />
     </div>
   );
 }
 
-function Column({ id, label, tasks }: { id: Status; label: string; tasks: Task[] }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+function TeamCard({ projectId, members, invitations }: { projectId: string; members: AnyRow[]; invitations: AnyRow[] }) {
+  const pending = invitations.filter((invite) => invite.status === "pending");
   return (
-    <div ref={setNodeRef} className={`flex w-72 shrink-0 flex-col rounded-lg border bg-muted/30 p-3 transition-colors ${isOver ? "border-accent bg-accent/10" : ""}`}>
-      <div className="mb-3 flex items-center justify-between px-1">
-        <h3 className="text-sm font-semibold">{label}</h3>
-        <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground">{tasks.length}</span>
+    <Card className="p-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" /><h3 className="font-display text-lg font-semibold">Equipe do projeto</h3></div>
+          <p className="mt-1 text-sm text-muted-foreground">Participantes e convites são específicos deste projeto; não liberam acesso ao workspace inteiro.</p>
+        </div>
+        <NewInviteDialog projectId={projectId} />
       </div>
-      <div className="flex-1 space-y-2 overflow-y-auto">
-        {tasks.map((t) => <TaskCard key={t.id} task={t} />)}
-      </div>
-    </div>
-  );
-}
-
-function TaskCard({ task }: { task: Task }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
-  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
-  const late = task.due_date && new Date(task.due_date) < new Date() && task.status !== "done";
-
-  const priorityCls = {
-    low: "bg-muted text-muted-foreground",
-    medium: "bg-secondary text-secondary-foreground",
-    high: "bg-warning/20 text-warning-foreground",
-    urgent: "bg-destructive/20 text-destructive",
-  }[task.priority];
-
-  return (
-    <Card ref={setNodeRef} {...listeners} {...attributes} style={style} className={`cursor-grab p-3 ${isDragging ? "opacity-50" : ""} active:cursor-grabbing`}>
-      <p className="text-sm font-medium leading-snug">{task.title}</p>
-      <div className="mt-2 flex items-center justify-between text-xs">
-        <span className={`rounded px-1.5 py-0.5 ${priorityCls}`}>{task.priority}</span>
-        {task.due_date && (
-          <span className={late ? "text-destructive" : "text-muted-foreground"}>
-            {new Date(task.due_date).toLocaleDateString("pt-BR")}
-          </span>
-        )}
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border p-4">
+          <p className="text-sm font-medium">Participantes ativos</p>
+          <List items={members.map((member) => `${member.user_id?.slice(0, 8) ?? "Usuário"} — ${roleLabel(member.role)} (${member.status ?? "active"})`)} empty="Nenhum participante adicional." />
+        </div>
+        <div className="rounded-xl border p-4">
+          <p className="text-sm font-medium">Convites pendentes</p>
+          <List items={pending.map((invite) => `${invite.invited_email} — ${roleLabel(invite.role)}`)} empty="Nenhum convite pendente." />
+        </div>
       </div>
     </Card>
   );
 }
 
-function NewTaskDialog({ projectId }: { projectId: string }) {
+function WbsTab({ projectId, items, tasks }: { projectId: string; items: AnyRow[]; tasks: AnyRow[] }) {
+  const roots = items.filter((i) => !i.parent_id);
+  return (
+    <Card className="p-6">
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div><h2 className="font-display text-xl font-semibold">EAP — Estrutura Analítica do Projeto</h2><p className="text-sm text-muted-foreground">Projeto → fases → pacotes → tarefas, com pesos e progresso por fase.</p></div>
+        <div className="flex flex-wrap gap-2"><Button variant="secondary" size="sm">Diagrama</Button><Button variant="secondary" size="sm">Tabela</Button><Button variant="secondary" size="sm">Pastas</Button><NewWbsDialog projectId={projectId} items={items} /></div>
+      </div>
+      {items.length === 0 ? <EmptyState title="Nenhuma EAP criada" text="Adicione fases e pacotes para transformar entregas em tarefas." /> : <div className="space-y-2">{roots.map((item) => <WbsNode key={item.id} item={item} all={items} tasks={tasks} level={0} />)}</div>}
+    </Card>
+  );
+}
+
+function WbsNode({ item, all, tasks, level }: { item: AnyRow; all: AnyRow[]; tasks: AnyRow[]; level: number }) {
+  const children = all.filter((i) => i.parent_id === item.id);
+  const linkedTasks = tasks.filter((t) => t.wbs_item_id === item.id);
+  const done = linkedTasks.filter((t) => t.status === "done").length;
+  const calculated = linkedTasks.length ? Math.round((done / linkedTasks.length) * 100) : Number(item.progress ?? 0);
+  return (
+    <div className="rounded-lg border bg-card p-3" style={{ marginLeft: level * 20 }}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2"><span>{item.type === "phase" ? "📁" : item.type === "task" ? "✓" : "📦"}</span><strong>{item.code}</strong><span>{item.title}</span><StatusBadge status={item.status} /></div>
+        <div className="flex min-w-56 items-center gap-3 text-xs text-muted-foreground"><span>Peso {Number(item.weight ?? 0)}%</span><Progress value={calculated} className="h-2" /><span>{calculated}%</span></div>
+      </div>
+      {children.length > 0 && <div className="mt-2 space-y-2">{children.map((child) => <WbsNode key={child.id} item={child} all={all} tasks={tasks} level={level + 1} />)}</div>}
+    </div>
+  );
+}
+
+function KanbanColumn({ col, tasks }: { col: (typeof COLUMNS)[number]; tasks: AnyRow[] }) {
+  const { setNodeRef, isOver } = useDroppable({ id: col.id });
+  return (
+    <div ref={setNodeRef} className={`flex min-h-[620px] w-72 shrink-0 flex-col rounded-2xl border bg-card p-3 shadow-sm ${isOver ? "border-primary bg-primary/5" : ""}`}>
+      <div className="mb-3 flex items-start justify-between px-1"><div><h3 className="font-semibold">{col.label}</h3><p className="text-xs text-muted-foreground">{col.hint}</p></div><Badge variant="secondary">{tasks.length}</Badge></div>
+      <div className="flex-1 space-y-2">{tasks.map((t) => <TaskCard key={t.id} task={t} />)}</div>
+    </div>
+  );
+}
+
+function TaskCard({ task }: { task: AnyRow }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
+  const late = task.due_date && new Date(task.due_date) < startOfToday() && task.status !== "done";
+  return (
+    <Card ref={setNodeRef} {...listeners} {...attributes} style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined} className={`cursor-grab p-3 active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}>
+      <div className="flex items-start justify-between gap-2"><p className="text-sm font-semibold leading-snug">{task.title}</p><PriorityBadge priority={task.priority} /></div>
+      {task.description && <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{task.description}</p>}
+      <div className="mt-3 flex items-center justify-between text-xs"><span className={late ? "font-medium text-destructive" : "text-muted-foreground"}>{formatDate(task.due_date) || "Sem prazo"}</span><span>{task.progress ?? 0}%</span></div>
+      {task.blocked_reason && <p className="mt-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">Bloqueio: {task.blocked_reason}</p>}
+    </Card>
+  );
+}
+
+function TaskTable({ projectId, tasks, wbsItems }: { projectId: string; tasks: AnyRow[]; wbsItems: AnyRow[] }) {
+  const qc = useQueryClient();
+  async function quickUpdate(id: string, patch: AnyRow) {
+    const { error } = await db.from("tasks").update(patch).eq("id", id).eq("project_id", projectId);
+    if (error) toast.error(error.message); else qc.invalidateQueries({ queryKey: ["tasks", projectId] });
+  }
+  return (
+    <Card className="overflow-hidden"><Table><TableHeader><TableRow><TableHead>Tarefa</TableHead><TableHead>Status</TableHead><TableHead>Prioridade</TableHead><TableHead>Início</TableHead><TableHead>Término</TableHead><TableHead>EAP</TableHead><TableHead>Progresso</TableHead><TableHead>Custo estimado</TableHead></TableRow></TableHeader><TableBody>{tasks.map((t) => <TableRow key={t.id}><TableCell className="font-medium">{t.title}</TableCell><TableCell><Select defaultValue={t.status} onValueChange={(v) => quickUpdate(t.id, { status: v, blocked_reason: v === "blocked" ? "Bloqueio registrado via tabela" : t.blocked_reason })}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent>{COLUMNS.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}</SelectContent></Select></TableCell><TableCell><PriorityBadge priority={t.priority} /></TableCell><TableCell>{formatDate(t.start_date)}</TableCell><TableCell>{formatDate(t.due_date)}</TableCell><TableCell>{wbsItems.find((w) => w.id === t.wbs_item_id)?.title ?? "—"}</TableCell><TableCell>{t.progress ?? 0}%</TableCell><TableCell>R$ {Number(t.estimated_cost ?? 0).toLocaleString("pt-BR")}</TableCell></TableRow>)}</TableBody></Table></Card>
+  );
+}
+
+function TimelineTab({ project, tasks, wbsItems }: { project: AnyRow; tasks: AnyRow[]; wbsItems: AnyRow[] }) {
+  const rows = [...wbsItems.map((w) => ({ ...w, kind: "EAP" })), ...tasks.map((t) => ({ ...t, kind: "Tarefa" }))].filter((i) => i.start_date || i.due_date || i.end_date);
+  return <Card className="p-6"><h2 className="font-display text-xl font-semibold">Cronograma simples</h2><p className="text-sm text-muted-foreground">Linha do tempo sem Gantt complexo para responder o que vem agora e o que está atrasado.</p><div className="mt-5 space-y-3"><div className="rounded-xl border bg-primary/5 p-4"><strong>Janela do projeto:</strong> {formatDate(project.start_date) || "início aberto"} → {formatDate(project.end_date) || "fim aberto"}</div>{rows.length === 0 ? <EmptyState title="Sem datas" text="Adicione início e término em tarefas ou EAP." /> : rows.map((r) => <div key={`${r.kind}-${r.id}`} className="rounded-xl border bg-card p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{r.kind}: {r.title}</strong><StatusBadge status={r.status} /></div><p className="text-sm text-muted-foreground">{formatDate(r.start_date) || "sem início"} → {formatDate(r.due_date || r.end_date) || "sem término"}</p></div>)}</div></Card>;
+}
+
+function RisksTab({ projectId, risks }: { projectId: string; risks: AnyRow[] }) {
+  return <Card className="p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-display text-xl font-semibold">Riscos</h2><p className="text-sm text-muted-foreground">Riscos críticos aparecem no dashboard e afetam a saúde do projeto.</p></div><NewRiskDialog projectId={projectId} /></div><div className="grid gap-3 lg:grid-cols-2">{risks.length ? risks.map((r) => <Card key={r.id} className="p-4"><div className="flex justify-between gap-3"><strong>{r.title}</strong><RiskBadge level={r.level} /></div><p className="mt-2 text-sm text-muted-foreground">{r.description || "Sem descrição"}</p><p className="mt-3 text-xs"><strong>Ação preventiva:</strong> {r.preventive_action || "não definida"}</p></Card>) : <EmptyState title="Nenhum risco" text="Cadastre riscos para antecipar problemas." />}</div></Card>;
+}
+
+function CostsTab({ projectId, costs, project }: { projectId: string; costs: AnyRow[]; project: AnyRow }) {
+  const actual = costs.reduce((sum, c) => sum + Number(c.actual_value ?? 0), Number(project.budget_actual ?? 0));
+  const planned = Number(project.budget_planned ?? 0);
+  const pct = planned ? Math.round((actual / planned) * 100) : 0;
+  return <Card className="p-6"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-display text-xl font-semibold">Custos</h2><p className="text-sm text-muted-foreground">Planejado: R$ {planned.toLocaleString("pt-BR")} · Real: R$ {actual.toLocaleString("pt-BR")} · Saldo: R$ {(planned - actual).toLocaleString("pt-BR")}</p></div><NewCostDialog projectId={projectId} /></div><Progress value={Math.min(pct, 100)} />{pct >= 80 && <p className="mt-2 text-sm text-warning-foreground">Alerta: orçamento consumido em {pct}%.</p>}<div className="mt-5 space-y-2">{costs.map((c) => <div key={c.id} className="flex justify-between rounded-lg border p-3"><span>{c.description}</span><span>R$ {Number(c.actual_value ?? 0).toLocaleString("pt-BR")}</span></div>)}</div></Card>;
+}
+
+function DocumentsTab({ projectId, documents }: { projectId: string; documents: AnyRow[] }) {
+  return <Card className="p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-display text-xl font-semibold">Documentos do projeto</h2><p className="text-sm text-muted-foreground">Todo documento é salvo com project_id e só pode ser usado pela IA deste projeto.</p></div><NewDocumentDialog projectId={projectId} /></div><div className="grid gap-3 lg:grid-cols-2">{documents.length ? documents.map((d) => <Card key={d.id} className="p-4"><div className="flex items-start gap-3"><FileText className="mt-1 h-5 w-5 text-primary" /><div><strong>{d.name}</strong><p className="text-sm text-muted-foreground">{d.file_type} · {d.processing_status} · IA {d.ai_enabled ? "habilitada" : "desabilitada"}</p>{d.file_url && <a className="text-sm text-primary hover:underline" href={d.file_url} target="_blank" rel="noreferrer">Abrir arquivo/link</a>}</div></div></Card>) : <EmptyState title="Nenhum documento" text="Cadastre PDFs, DOCX, imagens, planilhas ou links por projeto." />}</div></Card>;
+}
+
+function AiTab({ projectId, conversations }: { projectId: string; conversations: AnyRow[] }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [desc, setDesc] = useState("");
-  const [status, setStatus] = useState<Status>("todo");
-  const [priority, setPriority] = useState<Database["public"]["Enums"]["task_priority"]>("medium");
-  const [due, setDue] = useState("");
+  const [message, setMessage] = useState("Qual é a situação atual deste projeto?");
+  const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
+  const [drafting, setDrafting] = useState(false);
 
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) return;
+  async function ask() {
     setLoading(true);
-    const { error } = await supabase.from("tasks").insert({
-      project_id: projectId,
-      title: title.trim(),
-      description: desc.trim() || null,
-      status,
-      priority,
-      due_date: due || null,
-      created_by: user.id,
-    });
+    const { data, error } = await supabase.functions.invoke("project-ai", { body: { project_id: projectId, conversation_id: conversations[0]?.id, message } });
     setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    qc.invalidateQueries({ queryKey: ["tasks", projectId] });
-    setOpen(false);
-    setTitle(""); setDesc(""); setDue("");
+    if (error) toast.error(error.message); else setAnswer(data.answer);
+  }
+
+  async function createAgentDraft(forcedType?: string) {
+    if (!user) return;
+    setDrafting(true);
+    const draft = buildAgentDraft(message, forcedType);
+    const { data: output, error: outputError } = await db.from("ai_outputs").insert({
+      project_id: projectId,
+      created_by: user.id,
+      type: draft.approval_type,
+      status: "draft",
+      content: draft.payload,
+    }).select("id").single();
+
+    if (outputError) {
+      setDrafting(false);
+      toast.error(outputError.message);
+      return;
+    }
+
+    const { error: approvalError } = await db.from("pending_approvals").insert({
+      project_id: projectId,
+      ai_output_id: output?.id,
+      requested_by: user.id,
+      approval_type: draft.approval_type,
+      title: draft.title,
+      summary: draft.summary,
+      payload: draft.payload,
+    });
+
+    if (!approvalError) {
+      await db.from("ai_action_logs").insert({
+        project_id: projectId,
+        ai_output_id: output?.id,
+        action_type: draft.approval_type,
+        result: "pending",
+        command: message,
+        interpretation: draft.audit,
+      });
+    }
+
+    setDrafting(false);
+    if (approvalError) toast.error(approvalError.message);
+    else {
+      toast.success(`${typeLabel(draft.approval_type)} preparada em Aprovações Pendentes.`);
+      qc.invalidateQueries({ queryKey: ["pending_approvals", projectId] });
+    }
   }
 
   return (
+    <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <Card className="p-6">
+        <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /><h2 className="font-display text-xl font-semibold">Assistente do Projeto</h2></div>
+        <div className="mt-3 rounded-xl border bg-primary/5 p-4 text-sm text-muted-foreground"><ShieldCheck className="mb-2 h-4 w-4 text-primary" />A IA recebe obrigatoriamente o project_id atual, consulta apenas dados/documentos deste projeto e é read-only por padrão. Sugestões de ação viram rascunhos e precisam de aprovação.</div>
+        <Textarea className="mt-4" rows={4} value={message} onChange={(e) => setMessage(e.target.value)} />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button onClick={ask} disabled={loading || !message.trim()}><Send className="mr-2 h-4 w-4" />{loading ? "Analisando..." : "Perguntar"}</Button>
+          <Button variant="secondary" onClick={() => createAgentDraft()} disabled={drafting || !message.trim()}><Sparkles className="mr-2 h-4 w-4" />Identificar ação</Button>
+          <Button variant="outline" onClick={() => createAgentDraft("task_suggestion")} disabled={drafting || !message.trim()}><Plus className="mr-2 h-4 w-4" />Tarefa</Button>
+          <Button variant="outline" onClick={() => createAgentDraft("meeting_suggestion")} disabled={drafting || !message.trim()}><Video className="mr-2 h-4 w-4" />Reunião</Button>
+          <Button variant="outline" onClick={() => createAgentDraft("email_draft")} disabled={drafting || !message.trim()}><MailPlus className="mr-2 h-4 w-4" />Invite/e-mail</Button>
+          <Button variant="outline" onClick={() => createAgentDraft("reminder_draft")} disabled={drafting || !message.trim()}><Bell className="mr-2 h-4 w-4" />Lembrete</Button>
+          <Button variant="outline" onClick={() => createAgentDraft("calendar_event_draft")} disabled={drafting || !message.trim()}><CalendarPlus className="mr-2 h-4 w-4" />Agenda</Button>
+        </div>
+        {answer && <div className="mt-5 whitespace-pre-wrap rounded-xl border bg-card p-4 text-sm">{answer}</div>}
+      </Card>
+      <Card className="p-6">
+        <h3 className="font-semibold">Copiloto seguro</h3>
+        <p className="mt-2 text-sm text-muted-foreground">O agente identifica comandos para tarefas, reuniões, convites, lembretes e Google Agenda. Nada é enviado ou criado sem sua aprovação.</p>
+        <h3 className="mt-6 font-semibold">Histórico isolado</h3>
+        <List items={conversations.map((c) => c.title)} empty="Nenhuma conversa neste projeto." />
+      </Card>
+    </div>
+  );
+}
+
+function ProjectApprovalsTab({ projectId, approvals }: { projectId: string; approvals: AnyRow[] }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const rows = approvals ?? [];
+
+  async function approve(row: AnyRow) {
+    if (!user) return;
+    const warnings: string[] = [];
+    if (["task_suggestion", "meeting_suggestion"].includes(row.approval_type)) {
+      const payload = row.payload ?? {};
+      const meetingDetails = payload.meeting ? `\n\nDetalhes da reunião: ${JSON.stringify(payload.meeting)}` : "";
+      const { error } = await db.from("tasks").insert({
+        project_id: projectId,
+        created_by: user.id,
+        title: payload.title || row.title,
+        description: `${payload.description || row.summary || ""}${meetingDetails}`.trim() || null,
+        priority: payload.priority || "medium",
+        status: "todo",
+        due_date: payload.due_date || null,
+        task_type: row.approval_type === "meeting_suggestion" ? "meeting" : (payload.task_type || "common"),
+        notes: payload.notes || "Criado após aprovação de sugestão da IA.",
+      });
+      if (error) {
+        const { error: fallbackError } = await db.from("tasks").insert({
+          project_id: projectId,
+          created_by: user.id,
+          title: payload.title || row.title,
+          description: `${payload.description || row.summary || ""}${meetingDetails}`.trim() || null,
+          priority: payload.priority || "medium",
+          status: "todo",
+          due_date: payload.due_date || null,
+        });
+        if (fallbackError) warnings.push(fallbackError.message);
+      }
+    }
+
+    if (row.approval_type === "risk_suggestion") {
+      const payload = row.payload ?? {};
+      const { error } = await db.from("risks").insert({
+        project_id: projectId,
+        title: payload.title || row.title,
+        description: payload.description || row.summary || null,
+        probability: payload.probability || "medium",
+        impact: payload.impact || "medium",
+        level: payload.level || "medium",
+        preventive_action: payload.preventive_action || null,
+        response_plan: payload.response_plan || null,
+        status: "open",
+      });
+      if (error) warnings.push(error.message);
+    }
+
+    if (!warnings.length) {
+      await db.from("pending_approvals").update({ status: "approved", approved_by: user.id, approved_at: new Date().toISOString() }).eq("id", row.id).eq("project_id", projectId);
+      if (row.ai_output_id) await db.from("ai_outputs").update({ status: "approved" }).eq("id", row.ai_output_id).eq("project_id", projectId);
+      await db.from("ai_action_logs").insert({ project_id: projectId, ai_output_id: row.ai_output_id, pending_approval_id: row.id, action_type: row.approval_type, result: "success", interpretation: row.summary, executed_by: user.id });
+      toast.success("Ação aprovada e salva no projeto.");
+    } else {
+      await db.from("ai_action_logs").insert({ project_id: projectId, ai_output_id: row.ai_output_id, pending_approval_id: row.id, action_type: row.approval_type, result: "error", error_message: warnings.join("; "), executed_by: user.id });
+      toast.error(warnings[0]);
+    }
+    qc.invalidateQueries({ queryKey: ["pending_approvals", projectId] });
+    qc.invalidateQueries({ queryKey: ["tasks", projectId] });
+  }
+
+  async function reject(row: AnyRow) {
+    await db.from("pending_approvals").update({ status: "rejected", rejected_at: new Date().toISOString() }).eq("id", row.id).eq("project_id", projectId);
+    if (row.ai_output_id) await db.from("ai_outputs").update({ status: "discarded" }).eq("id", row.ai_output_id).eq("project_id", projectId);
+    await db.from("ai_action_logs").insert({ project_id: projectId, ai_output_id: row.ai_output_id, pending_approval_id: row.id, action_type: row.approval_type, result: "skipped", interpretation: "Sugestão recusada pelo usuário.", executed_by: user?.id ?? null });
+    toast.success("Sugestão recusada.");
+    qc.invalidateQueries({ queryKey: ["pending_approvals", projectId] });
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="font-display text-xl font-semibold">Aprovações pendentes do projeto</h2>
+          <p className="text-sm text-muted-foreground">Tudo que o agente preparar aparece aqui antes de virar tarefa, reunião, e-mail ou evento definitivo.</p>
+        </div>
+        <Button asChild variant="secondary"><Link to="/approvals">Ver todas</Link></Button>
+      </div>
+      <div className="mt-5 grid gap-3">
+        {rows.length ? rows.map((row) => (
+          <Card key={row.id} className="p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2"><strong>{row.title}</strong><Badge>{typeLabel(row.approval_type)}</Badge><Badge variant={row.status === "pending" ? "secondary" : "outline"}>{approvalStatusLabel(row.status)}</Badge></div>
+                {row.summary && <p className="mt-2 text-sm text-muted-foreground">{row.summary}</p>}
+                <pre className="mt-3 max-h-40 overflow-auto rounded-lg bg-muted p-3 text-xs text-muted-foreground">{JSON.stringify(row.payload ?? {}, null, 2)}</pre>
+              </div>
+              {row.status === "pending" && <div className="flex shrink-0 flex-wrap gap-2"><Button onClick={() => approve(row)}>Aprovar e salvar</Button><Button variant="outline" onClick={() => toast.info("Edição avançada da sugestão ficará na próxima fase. Por enquanto, descarte e peça uma nova versão ao assistente.")}>Editar antes de salvar</Button><Button variant="destructive" onClick={() => reject(row)}>Descartar sugestão</Button></div>}
+            </div>
+          </Card>
+        )) : <EmptyState title="Nenhuma aprovação" text="Peça ao Assistente do Projeto para preparar uma tarefa ou sugestão editável." />}
+      </div>
+    </Card>
+  );
+}
+
+function buildAgentDraft(command: string, forcedType?: string) {
+  const clean = command.trim();
+  const approvalType = forcedType || detectApprovalType(clean);
+  const compact = clean.replace(/^(crie|criar|gere|gerar|sugira|sugerir|prepare|preparar|envie|enviar)\s+/i, "");
+  const shortTitle = compact.length > 80 ? `${compact.slice(0, 77)}...` : compact;
+  const base = {
+    original_command: clean,
+    missing_fields: extractMissingFields(clean, approvalType),
+    notes: "Rascunho editável. O agente não executou ação definitiva sem aprovação humana.",
+  };
+
+  if (approvalType === "meeting_suggestion") {
+    const payload = {
+      ...base,
+      title: shortTitle || "Reunião sugerida pela IA",
+      description: `Reunião preparada a partir do comando: “${clean}”. Confirme data, horário, participantes, Google Agenda/Meet e envio de convite antes de executar.`,
+      task_type: "meeting",
+      priority: "medium",
+      status: "todo",
+      meeting: { date: null, start_time: null, end_time: null, attendees: [], create_google_calendar: false, create_google_meet: false, send_email_invite: false, create_reminder: false },
+    };
+    return { approval_type: approvalType, title: payload.title, summary: payload.description, payload, audit: "O assistente preparou uma reunião como rascunho. Ela só vira tarefa/reunião após aprovação humana." };
+  }
+
+  if (approvalType === "email_draft") {
+    const payload = {
+      ...base,
+      subject: shortTitle || "Convite preparado pelo Assistente do Projeto",
+      body: `Rascunho de convite/e-mail baseado no comando: “${clean}”. Revise destinatários, data, horário e conteúdo antes de enviar.`,
+      recipients: [],
+      send_now: false,
+    };
+    return { approval_type: approvalType, title: payload.subject, summary: "Rascunho de invite/e-mail. Nenhum e-mail será enviado até você aprovar e configurar o envio.", payload, audit: "O assistente preparou um rascunho de e-mail/convite sem enviar mensagens." };
+  }
+
+  if (approvalType === "reminder_draft") {
+    const payload = { ...base, title: shortTitle || "Lembrete sugerido pela IA", channel: "platform", remind_at: null, reminder_type: "custom" };
+    return { approval_type: approvalType, title: payload.title, summary: "Rascunho de lembrete. Confirme data, canal e vínculo com tarefa/reunião antes de ativar.", payload, audit: "O assistente preparou um lembrete como rascunho sem ativar notificações." };
+  }
+
+  if (approvalType === "calendar_event_draft") {
+    const payload = { ...base, title: shortTitle || "Evento de agenda sugerido pela IA", description: `Evento preparado a partir do comando: “${clean}”.`, start_at: null, end_at: null, attendees: [], create_meet_link: false, provider: "google_calendar" };
+    return { approval_type: approvalType, title: payload.title, summary: "Rascunho de evento do Google Agenda. Nenhum evento será criado sem confirmação e integração conectada.", payload, audit: "O assistente preparou um evento de agenda como rascunho." };
+  }
+
+  if (approvalType === "risk_suggestion") {
+    const payload = { ...base, title: shortTitle || "Risco sugerido pela IA", description: `Risco identificado a partir do comando: “${clean}”.`, probability: "medium", impact: "medium", level: "medium", preventive_action: "Definir ação preventiva antes de aprovar.", response_plan: "Definir plano de resposta." };
+    return { approval_type: approvalType, title: payload.title, summary: payload.description, payload, audit: "O assistente preparou um risco para revisão." };
+  }
+
+  const payload = {
+    ...base,
+    title: shortTitle || "Nova tarefa sugerida pela IA",
+    description: `Sugestão preparada pelo Assistente do Projeto a partir do comando: “${clean || "sem comando informado"}”. Revise responsável, prazo e prioridade antes de aprovar.`,
+    priority: "medium",
+    status: "todo",
+    task_type: "common",
+  };
+  return { approval_type: "task_suggestion", title: payload.title, summary: payload.description, payload, audit: "O assistente preparou uma sugestão editável de tarefa. Nada foi salvo em tarefas sem aprovação humana." };
+}
+
+function detectApprovalType(command: string) {
+  const text = command.toLowerCase();
+  if (/reuni|meeting|meet/.test(text)) return "meeting_suggestion";
+  if (/convite|invite|e-mail|email|enviar/.test(text)) return "email_draft";
+  if (/lembrete|lembrar|notifica/.test(text)) return "reminder_draft";
+  if (/agenda|calendar|calendário|google/.test(text)) return "calendar_event_draft";
+  if (/risco|ameaça|problema/.test(text)) return "risk_suggestion";
+  return "task_suggestion";
+}
+
+function extractMissingFields(command: string, approvalType: string) {
+  const text = command.toLowerCase();
+  const missing: string[] = [];
+  if (["meeting_suggestion", "calendar_event_draft"].includes(approvalType)) {
+    if (!/\b(hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|\d{1,2}\/\d{1,2}|\d{4}-\d{2}-\d{2})\b/.test(text)) missing.push("data");
+    if (!/\b\d{1,2}h|\d{1,2}:\d{2}\b/.test(text)) missing.push("horário");
+  }
+  if (["meeting_suggestion", "email_draft", "calendar_event_draft"].includes(approvalType) && !/@/.test(text)) missing.push("e-mail dos participantes");
+  if (approvalType === "reminder_draft" && !/(antes|hoje|amanhã|\d{1,2}h|\d{1,2}:\d{2})/.test(text)) missing.push("quando lembrar");
+  return missing;
+}
+function typeLabel(type: string) { return ({ task_suggestion: "Tarefa", meeting_suggestion: "Reunião", wbs_suggestion: "EAP", risk_suggestion: "Risco", timeline_suggestion: "Cronograma", email_draft: "E-mail", calendar_event_draft: "Agenda", reminder_draft: "Lembrete", report_draft: "Relatório" } as AnyRow)[type] ?? type; }
+function approvalStatusLabel(status: string) { return ({ pending: "Pendente", approved: "Aprovada", rejected: "Recusada", cancelled: "Cancelada" } as AnyRow)[status] ?? status; }
+
+function ReportsTab({ projectId, project, metrics, reports }: { projectId: string; project: AnyRow; metrics: AnyRow; reports: AnyRow[] }) {
+  return <Card className="p-6"><div className="flex items-center justify-between"><h2 className="font-display text-xl font-semibold">Relatório de status</h2><CreateReportButton projectId={projectId} project={project} metrics={metrics} /></div><div className="mt-5 rounded-xl border bg-muted/30 p-5"><p><strong>Projeto:</strong> {project.name}</p><p><strong>Objetivo:</strong> {project.objective || project.description || "Não definido"}</p><p><strong>Progresso:</strong> {metrics.progress}%</p><p><strong>Saúde:</strong> {project.health} — {metrics.healthReason}</p><p><strong>Tarefas atrasadas:</strong> {metrics.lateTasks.length}</p><p><strong>Riscos principais:</strong> {metrics.criticalRisks.map((r: AnyRow) => r.title).join(", ") || "Nenhum crítico"}</p><p><strong>Custos:</strong> R$ {metrics.budgetActual.toLocaleString("pt-BR")} / R$ {metrics.budgetPlanned.toLocaleString("pt-BR")}</p></div><h3 className="mt-6 font-semibold">Relatórios salvos</h3><List items={reports.map((r) => `${r.title} — ${r.type}`)} empty="Nenhum relatório salvo." /></Card>;
+}
+
+function ClosureTab({ projectId, project, lessons }: { projectId: string; project: AnyRow; lessons: AnyRow[] }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const qc = useQueryClient();
+  async function addLesson() { const { error } = await db.from("lessons_learned").insert({ project_id: projectId, title, description }); if (error) toast.error(error.message); else { setTitle(""); setDescription(""); qc.invalidateQueries({ queryKey: ["lessons_learned", projectId] }); } }
+  return <Card className="p-6"><h2 className="font-display text-xl font-semibold">Encerramento simples</h2><div className="mt-4 grid gap-4 lg:grid-cols-2"><div className="space-y-3 rounded-xl border p-4"><p><strong>Objetivo inicial:</strong> {project.objective || "Não definido"}</p><p><strong>Entregas finais:</strong> {project.final_deliverables || "Não definido"}</p><p><strong>Aprovação:</strong> {project.approval_notes || "Pendente"}</p><p><strong>Checklist:</strong> validar entregas, registrar custos finais, documentar riscos enfrentados e aprovar encerramento.</p></div><div className="space-y-3 rounded-xl border p-4"><Input placeholder="Título da lição aprendida" value={title} onChange={(e) => setTitle(e.target.value)} /><Textarea placeholder="Descrição" value={description} onChange={(e) => setDescription(e.target.value)} /><Button onClick={addLesson} disabled={!title.trim()}>Adicionar lição</Button></div></div><h3 className="mt-6 font-semibold">Lições aprendidas</h3><List items={lessons.map((l) => `${l.title}: ${l.description || "sem descrição"}`)} empty="Nenhuma lição aprendida registrada." /></Card>;
+}
+
+function NewTaskDialog({ projectId, wbsItems }: { projectId: string; wbsItems: AnyRow[] }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", priority: "medium" as Priority, due_date: "", wbs_item_id: "none" });
+  async function create(e: FormEvent) { e.preventDefault(); if (!user) return; const { error } = await db.from("tasks").insert({ project_id: projectId, created_by: user.id, title: form.title, description: form.description || null, priority: form.priority, due_date: form.due_date || null, wbs_item_id: form.wbs_item_id === "none" ? null : form.wbs_item_id }); if (error) toast.error(error.message); else { toast.success("Tarefa criada"); qc.invalidateQueries({ queryKey: ["tasks", projectId] }); setOpen(false); setForm({ title: "", description: "", priority: "medium", due_date: "", wbs_item_id: "none" }); } }
+  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Nova tarefa</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Nova tarefa</DialogTitle></DialogHeader><form className="space-y-4" onSubmit={create}><Input required placeholder="Nome da tarefa" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><Textarea placeholder="Descrição" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /><Select value={form.wbs_item_id} onValueChange={(v) => setForm({ ...form, wbs_item_id: v })}><SelectTrigger><SelectValue placeholder="Entrega vinculada" /></SelectTrigger><SelectContent><SelectItem value="none">Sem vínculo com EAP</SelectItem>{wbsItems.map((w) => <SelectItem key={w.id} value={w.id}>{w.code} — {w.title}</SelectItem>)}</SelectContent></Select><Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /><DialogFooter><Button type="submit">Criar</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function NewWbsDialog({ projectId, items }: { projectId: string; items: AnyRow[] }) {
+  const qc = useQueryClient(); const [open, setOpen] = useState(false); const [form, setForm] = useState({ code: "", title: "", type: "phase", parent_id: "root", weight: "0" });
+  async function create(e: FormEvent) { e.preventDefault(); const { error } = await db.from("wbs_items").insert({ project_id: projectId, code: form.code, title: form.title, type: form.type, parent_id: form.parent_id === "root" ? null : form.parent_id, weight: Number(form.weight || 0) }); if (error) toast.error(error.message); else { qc.invalidateQueries({ queryKey: ["wbs_items", projectId] }); setOpen(false); setForm({ code: "", title: "", type: "phase", parent_id: "root", weight: "0" }); } }
+  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button variant="secondary"><Plus className="mr-2 h-4 w-4" />Adicionar pacote</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Adicionar item da EAP</DialogTitle></DialogHeader><form className="space-y-4" onSubmit={create}><Input required placeholder="Código (ex.: 1.0)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /><Input required placeholder="Título" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="phase">Fase</SelectItem><SelectItem value="package">Entrega/Pacote</SelectItem><SelectItem value="task">Tarefa</SelectItem></SelectContent></Select><Select value={form.parent_id} onValueChange={(v) => setForm({ ...form, parent_id: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="root">Raiz do projeto</SelectItem>{items.map((i) => <SelectItem key={i.id} value={i.id}>{i.code} — {i.title}</SelectItem>)}</SelectContent></Select><Input type="number" min="0" max="100" placeholder="Peso %" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} /><DialogFooter><Button type="submit">Salvar</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function NewInviteDialog({ projectId }: { projectId: string }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ invited_email: "", invited_name: "", role: "contributor", message: "" });
+  const [loading, setLoading] = useState(false);
+  async function sendInvite(e: FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    const { data, error } = await supabase.functions.invoke("send-project-invite", { body: { project_id: projectId, ...form } });
+    setLoading(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(data?.email_status === "sent" ? "Convite enviado por e-mail" : "Convite criado. Configure e-mail para envio automático.");
+    qc.invalidateQueries({ queryKey: ["project_invitations", projectId] });
+    setOpen(false);
+    setForm({ invited_email: "", invited_name: "", role: "contributor", message: "" });
+  }
+  return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button><Plus className="mr-2 h-4 w-4" /> Nova tarefa</Button>
-      </DialogTrigger>
+      <DialogTrigger asChild><Button variant="secondary"><Plus className="mr-2 h-4 w-4" />Convidar pessoas</Button></DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Nova tarefa</DialogTitle></DialogHeader>
-        <form onSubmit={create} className="space-y-4">
-          <div>
-            <Label htmlFor="title">Título</Label>
-            <Input id="title" required value={title} onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="desc">Descrição</Label>
-            <Textarea id="desc" rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as Status)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {COLUMNS.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Prioridade</Label>
-              <Select value={priority} onValueChange={(v) => setPriority(v as typeof priority)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Baixa</SelectItem>
-                  <SelectItem value="medium">Média</SelectItem>
-                  <SelectItem value="high">Alta</SelectItem>
-                  <SelectItem value="urgent">Urgente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div>
-            <Label htmlFor="due">Prazo</Label>
-            <Input id="due" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={loading || !title.trim()}>
-              {loading ? "Criando..." : "Criar tarefa"}
-            </Button>
-          </DialogFooter>
+        <DialogHeader><DialogTitle>Adicionar participantes</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">Convide pessoas para participar somente deste projeto. Elas não terão acesso aos outros projetos do seu workspace.</p>
+        <form className="space-y-4" onSubmit={sendInvite}>
+          <div><Label>E-mail do participante</Label><Input type="email" required value={form.invited_email} onChange={(e) => setForm({ ...form, invited_email: e.target.value })} /></div>
+          <div><Label>Nome opcional</Label><Input value={form.invited_name} onChange={(e) => setForm({ ...form, invited_name: e.target.value })} /></div>
+          <div><Label>Papel no projeto</Label><Select value={form.role} onValueChange={(role) => setForm({ ...form, role })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PROJECT_ROLE_OPTIONS.map((role) => <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label>Mensagem opcional</Label><Textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} /></div>
+          <DialogFooter><Button type="submit" disabled={loading}>{loading ? "Enviando..." : "Enviar convite"}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
 }
+
+function NewRiskDialog({ projectId }: { projectId: string }) { return <QuickInsertDialog title="Novo risco" button="Novo risco" fields={["title", "description", "preventive_action", "response_plan"]} table="risks" projectId={projectId} defaults={{ probability: "medium", impact: "high", level: "critical", status: "open" }} />; }
+function NewCostDialog({ projectId }: { projectId: string }) { return <QuickInsertDialog title="Novo custo" button="Novo custo" fields={["description", "planned_value", "actual_value"]} table="costs" projectId={projectId} defaults={{ category: "other" }} />; }
+function NewDocumentDialog({ projectId }: { projectId: string }) { const { user } = useAuth(); return <QuickInsertDialog title="Novo documento/link" button="Adicionar documento" fields={["name", "file_type", "file_url", "description"]} table="project_documents" projectId={projectId} defaults={{ uploaded_by: user?.id, processing_status: "pending", ai_enabled: true }} />; }
+
+function QuickInsertDialog({ title, button, fields, table, projectId, defaults }: { title: string; button: string; fields: string[]; table: string; projectId: string; defaults: AnyRow }) {
+  const [open, setOpen] = useState(false); const [form, setForm] = useState<AnyRow>({}); const qc = useQueryClient();
+  async function create(e: FormEvent) { e.preventDefault(); const payload = { ...defaults, ...form, project_id: projectId }; for (const k of ["planned_value", "actual_value"]) if (payload[k]) payload[k] = Number(payload[k]); const { error } = await db.from(table).insert(payload); if (error) toast.error(error.message); else { qc.invalidateQueries({ queryKey: [table, projectId] }); setOpen(false); setForm({}); } }
+  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button variant="secondary"><Plus className="mr-2 h-4 w-4" />{button}</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader><form className="space-y-3" onSubmit={create}>{fields.map((f) => <div key={f}><Label>{labelFor(f)}</Label>{f.includes("description") || f.includes("action") || f.includes("plan") ? <Textarea value={form[f] ?? ""} onChange={(e) => setForm({ ...form, [f]: e.target.value })} /> : <Input required={f === "title" || f === "name" || f === "description"} value={form[f] ?? ""} onChange={(e) => setForm({ ...form, [f]: e.target.value })} />}</div>)}<DialogFooter><Button type="submit">Salvar</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function CreateReportButton({ projectId, project, metrics }: { projectId: string; project: AnyRow; metrics: AnyRow }) { const qc = useQueryClient(); const { user } = useAuth(); return <Button variant="secondary" onClick={async () => { const { error } = await db.from("project_reports").insert({ project_id: projectId, type: "status", title: `Status — ${project.name}`, created_by: user?.id, content: { progress: metrics.progress, health_reason: metrics.healthReason } }); if (error) toast.error(error.message); else qc.invalidateQueries({ queryKey: ["project_reports", projectId] }); }}>Salvar relatório</Button>; }
+
+function MetricCard({ label, value, tone }: { label: string; value: any; tone: "blue" | "green" | "yellow" | "red" }) { const cls = { blue: "bg-primary/10 text-primary", green: "bg-success/10 text-success", yellow: "bg-warning/20 text-warning-foreground", red: "bg-destructive/10 text-destructive" }[tone]; return <Card className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className={`mt-3 inline-flex rounded-xl px-3 py-1 font-display text-2xl font-bold ${cls}`}>{value}</p></Card>; }
+function HealthBadge({ health }: { health: string }) { const map: AnyRow = { green: ["Saudável", "bg-success/15 text-success border-success/30"], yellow: ["Atenção", "bg-warning/15 text-warning-foreground border-warning/40"], red: ["Crítico", "bg-destructive/15 text-destructive border-destructive/40"] }; const v = map[health] ?? map.green; return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${v[1]}`}>{v[0]}</span>; }
+function StatusBadge({ status }: { status: string }) { const cls = status === "done" || status === "closed" ? "bg-success/10 text-success" : status === "blocked" ? "bg-destructive/10 text-destructive" : status === "in_progress" || status === "review" || status === "active" ? "bg-warning/20 text-warning-foreground" : "bg-muted text-muted-foreground"; return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{statusLabels[status] ?? status}</span>; }
+function PriorityBadge({ priority }: { priority: string }) { const cls = priority === "urgent" || priority === "high" ? "bg-destructive/10 text-destructive" : priority === "medium" ? "bg-warning/20 text-warning-foreground" : "bg-muted text-muted-foreground"; return <span className={`rounded px-1.5 py-0.5 text-xs ${cls}`}>{priority}</span>; }
+function RiskBadge({ level }: { level: string }) { const cls = level === "critical" ? "bg-destructive/10 text-destructive" : level === "medium" ? "bg-warning/20 text-warning-foreground" : "bg-success/10 text-success"; return <span className={`rounded-full px-2 py-0.5 text-xs ${cls}`}>{level}</span>; }
+function EmptyState({ title, text }: { title: string; text: string }) { return <div className="rounded-xl border border-dashed p-8 text-center"><p className="font-medium">{title}</p><p className="mt-1 text-sm text-muted-foreground">{text}</p></div>; }
+function List({ items, empty }: { items: string[]; empty: string }) { return items.length ? <ul className="mt-3 space-y-2 text-sm text-muted-foreground">{items.map((i, idx) => <li key={idx} className="rounded-lg bg-muted/50 p-2">{i}</li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">{empty}</p>; }
+function formatDate(date?: string | null) { return date ? new Date(`${date}T00:00:00`).toLocaleDateString("pt-BR") : ""; }
+function roleLabel(role: string) { return PROJECT_ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role; }
+function labelFor(field: string) { return ({ title: "Título", description: "Descrição", preventive_action: "Ação preventiva", response_plan: "Plano de resposta", planned_value: "Valor planejado", actual_value: "Valor real", name: "Nome", file_type: "Tipo", file_url: "URL do arquivo/link" } as AnyRow)[field] ?? field; }

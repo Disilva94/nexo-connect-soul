@@ -1,14 +1,21 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { LayoutDashboard, FolderKanban, Settings, LogOut } from "lucide-react";
+import { BookOpen, CalendarDays, CheckSquare, Files, FolderKanban, LayoutDashboard, ListTodo, LogOut, Settings, Users, BarChart3 } from "lucide-react";
 import { brand } from "@/config/brand";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 
 const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/projects", label: "Projetos", icon: FolderKanban },
-  { to: "/settings/organization", label: "Workspace", icon: Settings },
+  { to: "/tasks", label: "Tarefas", icon: ListTodo },
+  { to: "/calendar", label: "Calendário", icon: CalendarDays },
+  { to: "/settings/organization", label: "Equipe", icon: Users },
+  { to: "/reports", label: "Relatórios", icon: BarChart3 },
+  { to: "/approvals", label: "Aprovações", icon: CheckSquare },
+  { to: "/knowledge", label: "Conhecimento", icon: BookOpen },
+  { to: "/files", label: "Arquivos", icon: Files },
+  { to: "/settings/organization", label: "Configurações", icon: Settings },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -28,7 +35,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             const active = location.pathname.startsWith(item.to);
             return (
               <Link
-                key={item.to}
+                key={`${item.to}-${item.label}`}
                 to={item.to}
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   active

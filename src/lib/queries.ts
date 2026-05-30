@@ -1,6 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+const db = supabase as any;
+
 export const orgsQuery = queryOptions({
   queryKey: ["orgs"],
   queryFn: async () => {
@@ -16,9 +18,9 @@ export const orgsQuery = queryOptions({
 export const projectsQuery = queryOptions({
   queryKey: ["projects"],
   queryFn: async () => {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("projects")
-      .select("id, name, description, status, health, start_date, end_date, owner_id, org_id, created_at")
+      .select("id, name, description, objective, status, health, progress, health_reason, budget_planned, budget_actual, start_date, end_date, owner_id, org_id, created_at")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
@@ -29,7 +31,7 @@ export const projectQuery = (id: string) =>
   queryOptions({
     queryKey: ["projects", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("projects")
         .select("*")
         .eq("id", id)
@@ -43,7 +45,7 @@ export const tasksQuery = (projectId: string) =>
   queryOptions({
     queryKey: ["tasks", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("tasks")
         .select("*")
         .eq("project_id", projectId)
@@ -58,7 +60,7 @@ export const myTasksQuery = queryOptions({
   queryFn: async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return [];
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("tasks")
       .select("id, title, status, due_date, project_id, priority")
       .eq("assignee_id", u.user.id)
