@@ -64,7 +64,10 @@ function ProjectPage() {
   const costs = useProjectTable("costs", projectId, "date");
   const docs = useProjectTable("project_documents", projectId, "created_at");
   const conversations = useProjectTable("ai_conversations", projectId, "updated_at");
+ codex/create-saas-platform-nexo-projetos-8ui7wb
   const approvals = useProjectTable("pending_approvals", projectId, "created_at");
+
+ main
   const invitations = useProjectTable("project_invitations", projectId, "created_at");
   const members = useProjectTable("project_members", projectId, "created_at");
   const reports = useProjectTable("project_reports", projectId, "created_at");
@@ -139,7 +142,10 @@ function ProjectPage() {
             <TabsTrigger value="costs">Custos</TabsTrigger>
             <TabsTrigger value="documents">Documentos</TabsTrigger>
             <TabsTrigger value="ai">IA do Projeto</TabsTrigger>
+ codex/create-saas-platform-nexo-projetos-8ui7wb
             <TabsTrigger value="approvals">Aprovações</TabsTrigger>
+
+ main
             <TabsTrigger value="reports">Relatórios</TabsTrigger>
             <TabsTrigger value="closure">Encerramento</TabsTrigger>
           </TabsList>
@@ -157,7 +163,10 @@ function ProjectPage() {
           <TabsContent value="costs"><CostsTab projectId={projectId} costs={costs.data} project={project.data as AnyRow} /></TabsContent>
           <TabsContent value="documents"><DocumentsTab projectId={projectId} documents={docs.data} /></TabsContent>
           <TabsContent value="ai"><AiTab projectId={projectId} conversations={conversations.data} /></TabsContent>
+ codex/create-saas-platform-nexo-projetos-8ui7wb
           <TabsContent value="approvals"><ProjectApprovalsTab projectId={projectId} approvals={approvals.data} /></TabsContent>
+
+ main
           <TabsContent value="reports"><ReportsTab projectId={projectId} project={project.data as AnyRow} metrics={metrics} reports={reports.data} /></TabsContent>
           <TabsContent value="closure"><ClosureTab projectId={projectId} project={project.data as AnyRow} lessons={lessons.data} /></TabsContent>
         </Tabs>
@@ -322,7 +331,11 @@ function TaskTable({ projectId, tasks, wbsItems }: { projectId: string; tasks: A
 }
 
 function TimelineTab({ project, tasks, wbsItems }: { project: AnyRow; tasks: AnyRow[]; wbsItems: AnyRow[] }) {
+ codex/create-saas-platform-nexo-projetos-8ui7wb
   const rows = [...wbsItems.map((w) => ({ ...w, kind: "EAP" })), ...tasks.map((t) => ({ ...t, kind: "Tarefa" }))].filter((i) => i.start_date || i.due_date || i.end_date);
+
+  const rows: AnyRow[] = [...wbsItems.map((w) => ({ ...w, kind: "EAP" })), ...tasks.map((t) => ({ ...t, kind: "Tarefa" }))].filter((i: AnyRow) => i.start_date || i.due_date || i.end_date);
+ main
   return <Card className="p-6"><h2 className="font-display text-xl font-semibold">Cronograma simples</h2><p className="text-sm text-muted-foreground">Linha do tempo sem Gantt complexo para responder o que vem agora e o que está atrasado.</p><div className="mt-5 space-y-3"><div className="rounded-xl border bg-primary/5 p-4"><strong>Janela do projeto:</strong> {formatDate(project.start_date) || "início aberto"} → {formatDate(project.end_date) || "fim aberto"}</div>{rows.length === 0 ? <EmptyState title="Sem datas" text="Adicione início e término em tarefas ou EAP." /> : rows.map((r) => <div key={`${r.kind}-${r.id}`} className="rounded-xl border bg-card p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{r.kind}: {r.title}</strong><StatusBadge status={r.status} /></div><p className="text-sm text-muted-foreground">{formatDate(r.start_date) || "sem início"} → {formatDate(r.due_date || r.end_date) || "sem término"}</p></div>)}</div></Card>;
 }
 
@@ -342,6 +355,7 @@ function DocumentsTab({ projectId, documents }: { projectId: string; documents: 
 }
 
 function AiTab({ projectId, conversations }: { projectId: string; conversations: AnyRow[] }) {
+ codex/create-saas-platform-nexo-projetos-8ui7wb
   const { user } = useAuth();
   const qc = useQueryClient();
   const [message, setMessage] = useState("Qual é a situação atual deste projeto?");
@@ -558,6 +572,55 @@ function NewInviteDialog({ projectId }: { projectId: string }) {
   async function sendInvite(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
+
+  const [message, setMessage] = useState("Qual é a situação atual deste projeto?");
+  const [answer, setAnswer] = useState("");
+  const [loading, setLoading] = useState(false);
+  async function ask() {
+    setLoading(true);
+    const { data, error } = await supabase.functions.invoke("project-ai", { body: { project_id: projectId, conversation_id: conversations[0]?.id, message } });
+    setLoading(false);
+    if (error) toast.error(error.message); else setAnswer(data.answer);
+  }
+  return <div className="grid gap-4 lg:grid-cols-[1fr_320px]"><Card className="p-6"><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /><h2 className="font-display text-xl font-semibold">Assistente do Projeto</h2></div><div className="mt-3 rounded-xl border bg-primary/5 p-4 text-sm text-muted-foreground"><ShieldCheck className="mb-2 h-4 w-4 text-primary" />A IA recebe obrigatoriamente o project_id atual, consulta apenas dados/documentos deste projeto e é read-only por padrão.</div><Textarea className="mt-4" rows={4} value={message} onChange={(e) => setMessage(e.target.value)} /><Button className="mt-3" onClick={ask} disabled={loading || !message.trim()}><Send className="mr-2 h-4 w-4" />{loading ? "Analisando..." : "Perguntar"}</Button>{answer && <div className="mt-5 whitespace-pre-wrap rounded-xl border bg-card p-4 text-sm">{answer}</div>}</Card><Card className="p-6"><h3 className="font-semibold">Histórico isolado</h3><List items={conversations.map((c) => c.title)} empty="Nenhuma conversa neste projeto." /></Card></div>;
+}
+
+function ReportsTab({ projectId, project, metrics, reports }: { projectId: string; project: AnyRow; metrics: AnyRow; reports: AnyRow[] }) {
+  return <Card className="p-6"><div className="flex items-center justify-between"><h2 className="font-display text-xl font-semibold">Relatório de status</h2><CreateReportButton projectId={projectId} project={project} metrics={metrics} /></div><div className="mt-5 rounded-xl border bg-muted/30 p-5"><p><strong>Projeto:</strong> {project.name}</p><p><strong>Objetivo:</strong> {project.objective || project.description || "Não definido"}</p><p><strong>Progresso:</strong> {metrics.progress}%</p><p><strong>Saúde:</strong> {project.health} — {metrics.healthReason}</p><p><strong>Tarefas atrasadas:</strong> {metrics.lateTasks.length}</p><p><strong>Riscos principais:</strong> {metrics.criticalRisks.map((r: AnyRow) => r.title).join(", ") || "Nenhum crítico"}</p><p><strong>Custos:</strong> R$ {metrics.budgetActual.toLocaleString("pt-BR")} / R$ {metrics.budgetPlanned.toLocaleString("pt-BR")}</p></div><h3 className="mt-6 font-semibold">Relatórios salvos</h3><List items={reports.map((r) => `${r.title} — ${r.type}`)} empty="Nenhum relatório salvo." /></Card>;
+}
+
+function ClosureTab({ projectId, project, lessons }: { projectId: string; project: AnyRow; lessons: AnyRow[] }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const qc = useQueryClient();
+  async function addLesson() { const { error } = await db.from("lessons_learned").insert({ project_id: projectId, title, description }); if (error) toast.error(error.message); else { setTitle(""); setDescription(""); qc.invalidateQueries({ queryKey: ["lessons_learned", projectId] }); } }
+  return <Card className="p-6"><h2 className="font-display text-xl font-semibold">Encerramento simples</h2><div className="mt-4 grid gap-4 lg:grid-cols-2"><div className="space-y-3 rounded-xl border p-4"><p><strong>Objetivo inicial:</strong> {project.objective || "Não definido"}</p><p><strong>Entregas finais:</strong> {project.final_deliverables || "Não definido"}</p><p><strong>Aprovação:</strong> {project.approval_notes || "Pendente"}</p><p><strong>Checklist:</strong> validar entregas, registrar custos finais, documentar riscos enfrentados e aprovar encerramento.</p></div><div className="space-y-3 rounded-xl border p-4"><Input placeholder="Título da lição aprendida" value={title} onChange={(e) => setTitle(e.target.value)} /><Textarea placeholder="Descrição" value={description} onChange={(e) => setDescription(e.target.value)} /><Button onClick={addLesson} disabled={!title.trim()}>Adicionar lição</Button></div></div><h3 className="mt-6 font-semibold">Lições aprendidas</h3><List items={lessons.map((l) => `${l.title}: ${l.description || "sem descrição"}`)} empty="Nenhuma lição aprendida registrada." /></Card>;
+}
+
+function NewTaskDialog({ projectId, wbsItems }: { projectId: string; wbsItems: AnyRow[] }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", priority: "medium" as Priority, due_date: "", wbs_item_id: "none" });
+  async function create(e: FormEvent) { e.preventDefault(); if (!user) return; const { error } = await db.from("tasks").insert({ project_id: projectId, created_by: user.id, title: form.title, description: form.description || null, priority: form.priority, due_date: form.due_date || null, wbs_item_id: form.wbs_item_id === "none" ? null : form.wbs_item_id }); if (error) toast.error(error.message); else { toast.success("Tarefa criada"); qc.invalidateQueries({ queryKey: ["tasks", projectId] }); setOpen(false); setForm({ title: "", description: "", priority: "medium", due_date: "", wbs_item_id: "none" }); } }
+  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Nova tarefa</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Nova tarefa</DialogTitle></DialogHeader><form className="space-y-4" onSubmit={create}><Input required placeholder="Nome da tarefa" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><Textarea placeholder="Descrição" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /><Select value={form.wbs_item_id} onValueChange={(v) => setForm({ ...form, wbs_item_id: v })}><SelectTrigger><SelectValue placeholder="Entrega vinculada" /></SelectTrigger><SelectContent><SelectItem value="none">Sem vínculo com EAP</SelectItem>{wbsItems.map((w) => <SelectItem key={w.id} value={w.id}>{w.code} — {w.title}</SelectItem>)}</SelectContent></Select><Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /><DialogFooter><Button type="submit">Criar</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function NewWbsDialog({ projectId, items }: { projectId: string; items: AnyRow[] }) {
+  const qc = useQueryClient(); const [open, setOpen] = useState(false); const [form, setForm] = useState({ code: "", title: "", type: "phase", parent_id: "root", weight: "0" });
+  async function create(e: FormEvent) { e.preventDefault(); const { error } = await db.from("wbs_items").insert({ project_id: projectId, code: form.code, title: form.title, type: form.type, parent_id: form.parent_id === "root" ? null : form.parent_id, weight: Number(form.weight || 0) }); if (error) toast.error(error.message); else { qc.invalidateQueries({ queryKey: ["wbs_items", projectId] }); setOpen(false); setForm({ code: "", title: "", type: "phase", parent_id: "root", weight: "0" }); } }
+  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button variant="secondary"><Plus className="mr-2 h-4 w-4" />Adicionar pacote</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Adicionar item da EAP</DialogTitle></DialogHeader><form className="space-y-4" onSubmit={create}><Input required placeholder="Código (ex.: 1.0)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /><Input required placeholder="Título" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="phase">Fase</SelectItem><SelectItem value="package">Entrega/Pacote</SelectItem><SelectItem value="task">Tarefa</SelectItem></SelectContent></Select><Select value={form.parent_id} onValueChange={(v) => setForm({ ...form, parent_id: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="root">Raiz do projeto</SelectItem>{items.map((i) => <SelectItem key={i.id} value={i.id}>{i.code} — {i.title}</SelectItem>)}</SelectContent></Select><Input type="number" min="0" max="100" placeholder="Peso %" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} /><DialogFooter><Button type="submit">Salvar</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function NewInviteDialog({ projectId }: { projectId: string }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ invited_email: "", invited_name: "", role: "contributor", message: "" });
+  const [loading, setLoading] = useState(false);
+  async function sendInvite(e: FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+ main
     const { data, error } = await supabase.functions.invoke("send-project-invite", { body: { project_id: projectId, ...form } });
     setLoading(false);
     if (error) { toast.error(error.message); return; }
@@ -590,7 +653,11 @@ function NewDocumentDialog({ projectId }: { projectId: string }) { const { user 
 
 function QuickInsertDialog({ title, button, fields, table, projectId, defaults }: { title: string; button: string; fields: string[]; table: string; projectId: string; defaults: AnyRow }) {
   const [open, setOpen] = useState(false); const [form, setForm] = useState<AnyRow>({}); const qc = useQueryClient();
+ codex/create-saas-platform-nexo-projetos-8ui7wb
   async function create(e: FormEvent) { e.preventDefault(); const payload = { ...defaults, ...form, project_id: projectId }; for (const k of ["planned_value", "actual_value"]) if (payload[k]) payload[k] = Number(payload[k]); const { error } = await db.from(table).insert(payload); if (error) toast.error(error.message); else { qc.invalidateQueries({ queryKey: [table, projectId] }); setOpen(false); setForm({}); } }
+
+  async function create(e: FormEvent) { e.preventDefault(); const payload: AnyRow = { ...defaults, ...form, project_id: projectId }; for (const k of ["planned_value", "actual_value"]) if (payload[k]) payload[k] = Number(payload[k]); const { error } = await db.from(table).insert(payload); if (error) toast.error(error.message); else { qc.invalidateQueries({ queryKey: [table, projectId] }); setOpen(false); setForm({}); } }
+ main
   return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button variant="secondary"><Plus className="mr-2 h-4 w-4" />{button}</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader><form className="space-y-3" onSubmit={create}>{fields.map((f) => <div key={f}><Label>{labelFor(f)}</Label>{f.includes("description") || f.includes("action") || f.includes("plan") ? <Textarea value={form[f] ?? ""} onChange={(e) => setForm({ ...form, [f]: e.target.value })} /> : <Input required={f === "title" || f === "name" || f === "description"} value={form[f] ?? ""} onChange={(e) => setForm({ ...form, [f]: e.target.value })} />}</div>)}<DialogFooter><Button type="submit">Salvar</Button></DialogFooter></form></DialogContent></Dialog>;
 }
 
