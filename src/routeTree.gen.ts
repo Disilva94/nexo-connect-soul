@@ -20,7 +20,6 @@ import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
 import { Route as AuthenticatedFilesRouteImport } from './routes/_authenticated/files'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
- codex/create-saas-platform-nexo-projetos-8ui7wb
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
@@ -28,7 +27,6 @@ import { Route as AuthenticatedApprovalsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedFilesRouteImport } from './routes/_authenticated/files'
 
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
- main
 import { Route as AuthenticatedSettingsOrganizationRouteImport } from './routes/_authenticated/settings.organization'
 import { Route as AuthenticatedProjectsProjectIdRouteImport } from './routes/_authenticated/projects.$projectId'
 
@@ -86,19 +84,16 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
- codex/create-saas-platform-nexo-projetos-8ui7wb
 const AuthenticatedTasksRoute = AuthenticatedTasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
- main
 const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
- codex/create-saas-platform-nexo-projetos-8ui7wb
 const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -115,7 +110,6 @@ const AuthenticatedFilesRoute = AuthenticatedFilesRouteImport.update({
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 
- main
 const AuthenticatedSettingsOrganizationRoute =
   AuthenticatedSettingsOrganizationRouteImport.update({
     id: '/settings/organization',
@@ -133,7 +127,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
- codex/create-saas-platform-nexo-projetos-8ui7wb
   '/invite/$token': typeof InviteTokenRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/tasks': typeof AuthenticatedTasksRoute
@@ -143,7 +136,6 @@ export interface FileRoutesByFullPath {
 
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
- main
   '/files': typeof AuthenticatedFilesRoute
   '/projects': typeof AuthenticatedProjectsRouteWithChildren
   '/reports': typeof AuthenticatedReportsRoute
@@ -156,7 +148,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
- codex/create-saas-platform-nexo-projetos-8ui7wb
   '/invite/$token': typeof InviteTokenRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/tasks': typeof AuthenticatedTasksRoute
@@ -166,7 +157,6 @@ export interface FileRoutesByTo {
 
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
- main
   '/files': typeof AuthenticatedFilesRoute
   '/projects': typeof AuthenticatedProjectsRouteWithChildren
   '/reports': typeof AuthenticatedReportsRoute
@@ -181,7 +171,6 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
- codex/create-saas-platform-nexo-projetos-8ui7wb
   '/invite/$token': typeof InviteTokenRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
@@ -191,7 +180,6 @@ export interface FileRoutesById {
 
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
- main
   '/_authenticated/files': typeof AuthenticatedFilesRoute
   '/_authenticated/projects': typeof AuthenticatedProjectsRouteWithChildren
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
@@ -206,7 +194,6 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/signup'
- codex/create-saas-platform-nexo-projetos-8ui7wb
     | '/invite/$token'
     | '/dashboard'
     | '/tasks'
@@ -216,7 +203,6 @@ export interface FileRouteTypes {
 
     | '/calendar'
     | '/dashboard'
- main
     | '/files'
     | '/projects'
     | '/reports'
@@ -229,7 +215,6 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/signup'
- codex/create-saas-platform-nexo-projetos-8ui7wb
     | '/invite/$token'
     | '/dashboard'
     | '/tasks'
@@ -239,7 +224,6 @@ export interface FileRouteTypes {
 
     | '/calendar'
     | '/dashboard'
- main
     | '/files'
     | '/projects'
     | '/reports'
@@ -253,7 +237,6 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/signup'
- codex/create-saas-platform-nexo-projetos-8ui7wb
     | '/invite/$token'
     | '/_authenticated/dashboard'
     | '/_authenticated/tasks'
@@ -263,7 +246,6 @@ export interface FileRouteTypes {
 
     | '/_authenticated/calendar'
     | '/_authenticated/dashboard'
- main
     | '/_authenticated/files'
     | '/_authenticated/projects'
     | '/_authenticated/reports'
@@ -360,7 +342,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
- codex/create-saas-platform-nexo-projetos-8ui7wb
     '/_authenticated/tasks': {
       id: '/_authenticated/tasks'
       path: '/tasks'
@@ -369,7 +350,6 @@ declare module '@tanstack/react-router' {
       parentRoute: typeof AuthenticatedRoute
     }
 
- main
     '/_authenticated/calendar': {
       id: '/_authenticated/calendar'
       path: '/calendar'
@@ -377,7 +357,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCalendarRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
- codex/create-saas-platform-nexo-projetos-8ui7wb
     '/_authenticated/reports': {
       id: '/_authenticated/reports'
       path: '/reports'
@@ -400,7 +379,6 @@ declare module '@tanstack/react-router' {
       parentRoute: typeof AuthenticatedRoute
     }
 
- main
     '/_authenticated/settings/organization': {
       id: '/_authenticated/settings/organization'
       path: '/settings/organization'
@@ -434,13 +412,11 @@ const AuthenticatedProjectsRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
- codex/create-saas-platform-nexo-projetos-8ui7wb
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedApprovalsRoute: typeof AuthenticatedApprovalsRoute
 
- main
   AuthenticatedFilesRoute: typeof AuthenticatedFilesRoute
   AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRouteWithChildren
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
@@ -451,13 +427,11 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
- codex/create-saas-platform-nexo-projetos-8ui7wb
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedApprovalsRoute: AuthenticatedApprovalsRoute,
 
- main
   AuthenticatedFilesRoute: AuthenticatedFilesRoute,
   AuthenticatedProjectsRoute: AuthenticatedProjectsRouteWithChildren,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,

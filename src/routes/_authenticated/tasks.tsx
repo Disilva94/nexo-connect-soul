@@ -9,7 +9,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
- codex/create-saas-platform-nexo-projetos-8ui7wb
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import {
@@ -19,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
- main
 import { toast } from "sonner";
 
 const db = supabase as any;
@@ -32,7 +30,6 @@ export const Route = createFileRoute("/_authenticated/tasks")({
 
 function TasksPage() {
   const { user } = useAuth()
-  codex/create-saas-platform-nexo-projetos-8ui7wb
   const qc = useQueryClient();
   const [status, setStatus] = useState("all");
   const [projectId, setProjectId] = useState("");
@@ -43,14 +40,12 @@ function TasksPage() {
   const [projectId, setProjectId] = useState("");
   const [generating, setGenerating] = useState(false);
 
- main
   const projects = useQuery(projectsQuery);
   const tasks = useQuery({
     queryKey: ["all-project-tasks"],
     queryFn: async () => {
       const { data, error } = await db
         .from("tasks")
- codex/create-saas-platform-nexo-projetos-8ui7wb
         .select("id,title,description,status,priority,due_date,start_date,progress,project_id,assignee_id,blocked_reason")
         .order("due_date", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -63,13 +58,11 @@ function TasksPage() {
 
       if (error) throw error;
       return (data ?? []) as AnyRow[];
- main
     },
   });
 
   const projectRows = (projects.data ?? []) as AnyRow[];
   const selectedProjectId = projectId || projectRows[0]?.id || "";
- codex/create-saas-platform-nexo-projetos-8ui7wb
   const projectById = useMemo(() => new Map(projectRows.map((project: AnyRow) => [project.id, project])), [projectRows]);
   const rows = (tasks.data ?? []).filter((task: AnyRow) => status === "all" || task.status === status);
   const lateCount = rows.filter((task: AnyRow) => task.due_date && new Date(`${task.due_date}T00:00:00`) < startOfToday() && task.status !== "done").length;
@@ -122,21 +115,18 @@ function TasksPage() {
       );
 
       const { error: fallbackError } = await db.from("tasks").insert(fallbackRows);
- main
       if (fallbackError) {
         toast.error(fallbackError.message);
         setGenerating(false);
         return;
       }
     }
- codex/create-saas-platform-nexo-projetos-8ui7wb
     toast.success("Tarefas de execução criadas para o projeto selecionado.");
     qc.invalidateQueries({ queryKey: ["all-project-tasks"] });
 
 
     await queryClient.invalidateQueries({ queryKey: ["all-project-tasks"] });
     toast.success("Tarefas de execução criadas para o projeto selecionado.");
- main
     setGenerating(false);
   }
 
@@ -145,7 +135,6 @@ function TasksPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold">Tarefas</h1>
- codex/create-saas-platform-nexo-projetos-8ui7wb
           <p className="mt-1 text-muted-foreground">Execução estilo Trello/monday: filtre, acompanhe atrasos e gere tarefas iniciais quando o projeto estiver vazio.</p>
         </div>
         <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row">
@@ -162,7 +151,6 @@ function TasksPage() {
             <SelectTrigger className="lg:w-52">
               <SelectValue placeholder="Filtrar status" />
             </SelectTrigger>
- main
             <SelectContent>
               <SelectItem value="all">Todos os status</SelectItem>
               <SelectItem value="todo">A Fazer</SelectItem>
@@ -172,7 +160,6 @@ function TasksPage() {
               <SelectItem value="done">Concluído</SelectItem>
             </SelectContent>
           </Select>
- codex/create-saas-platform-nexo-projetos-8ui7wb
           <Select value={selectedProjectId} onValueChange={setProjectId}>
             <SelectTrigger className="lg:w-64"><SelectValue placeholder="Projeto para gerar tarefas" /></SelectTrigger>
             <SelectContent>{projectRows.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent>
@@ -196,13 +183,11 @@ function TasksPage() {
           <Button onClick={generateProjectTasks} disabled={!selectedProjectId || generating}>
             {generating ? "Gerando..." : "Recriar tarefas"}
           </Button>
- main
         </div>
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         <Metric label="Tarefas visíveis" value={rows.length} />
- codex/create-saas-platform-nexo-projetos-8ui7wb
         <Metric label="Atrasadas" value={lateCount} tone={lateCount ? "red" : "green"} />
         <Metric label="Concluídas" value={rows.filter((task: AnyRow) => task.status === "done").length} tone="green" />
 
@@ -211,13 +196,11 @@ function TasksPage() {
           label="Concluídas"
           value={rows.filter((task) => task.status === "done").length}
         />
- main
       </div>
 
       <KanbanSummary tasks={rows} />
 
       <div className="mt-8 grid gap-3">
- codex/create-saas-platform-nexo-projetos-8ui7wb
         {tasks.isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando tarefas...</Card>}
         {!tasks.isLoading && rows.length === 0 && <Card className="p-10 text-center text-muted-foreground">Nenhuma tarefa encontrada. Escolha um projeto e clique em “Recriar tarefas”.</Card>}
         {rows.map((task: AnyRow) => {
@@ -241,7 +224,6 @@ function TasksPage() {
             new Date(`${task.due_date}T00:00:00`) < startOfToday() &&
             task.status !== "done";
 
- main
           return (
             <Link key={task.id} to="/projects/$projectId" params={{ projectId: task.project_id }}>
               <Card className="p-4 transition hover:border-primary/50 hover:shadow-sm">
@@ -251,7 +233,6 @@ function TasksPage() {
                       <h3 className="font-semibold">{task.title}</h3>
                       <StatusBadge status={task.status} />
                       <PriorityBadge priority={task.priority} />
- codex/create-saas-platform-nexo-projetos-8ui7wb
                       {late && <Badge variant="destructive">Atrasada</Badge>}
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">{project?.name ?? "Projeto"} · Prazo: {formatDate(task.due_date) || "sem prazo"}</p>
@@ -276,7 +257,6 @@ function TasksPage() {
                   <div className="w-full lg:w-48">
                     <Progress value={task.progress ?? 0} />
                   </div>
- main
                 </div>
               </Card>
             </Link>
@@ -288,18 +268,15 @@ function TasksPage() {
 }
 
 function KanbanSummary({ tasks }: { tasks: AnyRow[] }) {
- codex/create-saas-platform-nexo-projetos-8ui7wb
   const columns = [
 
   const columns: Array<[string, string]> = [
- main
     ["todo", "A Fazer"],
     ["in_progress", "Fazendo"],
     ["review", "Em Revisão"],
     ["blocked", "Bloqueado"],
     ["done", "Concluído"],
   ];
- codex/create-saas-platform-nexo-projetos-8ui7wb
   return <div className="mt-8 grid gap-3 md:grid-cols-5">{columns.map(([id, label]) => <Card key={id} className="p-4"><p className="text-sm font-medium">{label}</p><p className="mt-2 font-display text-2xl font-bold">{tasks.filter((task) => task.status === id).length}</p></Card>)}</div>;
 
 
@@ -315,12 +292,10 @@ function KanbanSummary({ tasks }: { tasks: AnyRow[] }) {
       ))}
     </div>
   );
- main
 }
 
 function buildExecutionTasks(project: AnyRow, userId: string) {
   const start = project.start_date || new Date().toISOString().slice(0, 10);
- codex/create-saas-platform-nexo-projetos-8ui7wb
   return ["Validar escopo", "Organizar EAP", "Planejar cronograma", "Configurar Kanban", "Levantar riscos", "Registrar documentos", "Executar entrega principal", "Revisar qualidade", "Gerar relatório de status", "Encerrar lições aprendidas"].map((title, index) => ({
 
 
@@ -336,7 +311,6 @@ function buildExecutionTasks(project: AnyRow, userId: string) {
     "Gerar relatório de status",
     "Encerrar lições aprendidas",
   ].map((title, index) => ({
- main
     project_id: project.id,
     created_by: userId,
     title,
@@ -350,7 +324,6 @@ function buildExecutionTasks(project: AnyRow, userId: string) {
   }));
 }
 
- codex/create-saas-platform-nexo-projetos-8ui7wb
 function Metric({ label, value, tone = "blue" }: { label: string; value: number; tone?: "blue" | "green" | "red" }) {
   const cls = tone === "red" ? "text-destructive" : tone === "green" ? "text-success" : "text-primary";
   return <Card className="p-5"><p className="text-sm text-muted-foreground">{label}</p><p className={`mt-2 font-display text-3xl font-bold ${cls}`}>{value}</p></Card>;
@@ -417,4 +390,3 @@ function startOfToday() {
   today.setHours(0, 0, 0, 0);
   return today;
 }
- main
